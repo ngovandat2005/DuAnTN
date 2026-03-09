@@ -8,7 +8,7 @@ const heroSlides = [
   {
     id: 1,
     image: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=1920&q=80',
-    title: 'Bộ Sưu Tập Mới 2024',
+    title: 'Bộ Sưu Tập Mới 2025',
     description: 'Khám phá những mẫu giày thể thao mới nhất với thiết kế hiện đại và công nghệ tiên tiến',
     buttonText: 'Khám phá ngay',
     buttonLink: '/products',
