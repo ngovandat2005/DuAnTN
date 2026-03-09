@@ -113,12 +113,21 @@ function ContactPage() {
         </Col>
       </Row>
 
-      {/* Bản đồ */}
+       {/* Bản đồ */}
       <Divider />
       <Card title="Bản Đồ">
-        <div style={{ height: '400px', background: '#f0f0f0' }}>
-          {/* Thêm Google Maps hoặc bản đồ khác ở đây */}
-          <Text>Bản đồ sẽ được hiển thị ở đây</Text>
+        <div style={{ width: "100%", height: "400px" }}>
+          <iframe
+            width="100%"
+            height="100%"
+            frameBorder="0"
+            style={{ border: 0 }}
+            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3919.5234267550467!2d106.68076107346217!3d10.796200789340144!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x31752f3f3f3f3f3f%3A0x1234567890abcdef!2s123%20%C4%90%C6%B0%E1%BB%9Dng%20ABC%2C%20Qu%E1%BA%ADn%20XYZ%2C%20TP.%20H%E1%BB%93%20Ch%C3%AD%20Minh!5e0!3m2!1svi!2s!4v1234567890123"
+            allowFullScreen=""
+            loading="lazy"
+            referrerPolicy="no-referrer-when-downgrade"
+            title="Địa chỉ cửa hàng"
+          />
         </div>
       </Card>
     </div>
