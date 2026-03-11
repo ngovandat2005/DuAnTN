@@ -151,6 +151,19 @@ const BanHangTaiQuayPage = () => {
   const [orderTotal, setOrderTotal] = useState(0);
   const [orderDiscount, setOrderDiscount] = useState(0);
 
+  // Thêm state cho giao hàng
+  const [isShipping, setIsShipping] = useState(false);
+  const [shippingFee, setShippingFee] = useState(0);
+  const [provinces, setProvinces] = useState([]);
+  const [districts, setDistricts] = useState([]);
+  const [wards, setWards] = useState([]);
+  const [selectedProvince, setSelectedProvince] = useState('');
+  const [selectedDistrict, setSelectedDistrict] = useState('');
+  const [selectedWard, setSelectedWard] = useState('');
+  const [shippingDetail, setShippingDetail] = useState('');
+
+  const GHN_TOKEN = '7600bb91-7667-11ef-8e53-0a00184fe694'; // Token giả định hoặc hằng số
+
   // Load danh sách voucher khi mount
   useEffect(() => {
     fetch('http://localhost:8080/api/voucher')
@@ -164,6 +177,81 @@ const BanHangTaiQuayPage = () => {
       .then(res => res.json())
       .then(data => setCustomers(data || []));
   }, []);
+
+  // Fetch tỉnh thành từ GHN
+  useEffect(() => {
+    fetch('https://online-gateway.ghn.vn/shiip/public-api/master-data/province', {
+      headers: { Token: GHN_TOKEN }
+    })
+      .then(res => res.json())
+      .then(data => setProvinces(data.data || []));
+  }, []);
+
+  // Fetch quận huyện khi chọn tỉnh
+  useEffect(() => {
+    if (!selectedProvince) {
+      setDistricts([]);
+      return;
+    }
+    fetch(`https://online-gateway.ghn.vn/shiip/public-api/master-data/district?province_id=${selectedProvince}`, {
+      headers: { Token: GHN_TOKEN }
+    })
+      .then(res => res.json())
+      .then(data => setDistricts(data.data || []));
+  }, [selectedProvince]);
+
+  // Fetch phường xã khi chọn huyện
+  useEffect(() => {
+    if (!selectedDistrict) {
+      setWards([]);
+      return;
+    }
+    fetch(`https://online-gateway.ghn.vn/shiip/public-api/master-data/ward?district_id=${selectedDistrict}`, {
+      headers: { Token: GHN_TOKEN }
+    })
+      .then(res => res.json())
+      .then(data => setWards(data.data || []));
+  }, [selectedDistrict]);
+
+  // Tính phí vận chuyển tự động
+  const calculateShippingFee = async (districtId, wardCode) => {
+    if (!districtId || !wardCode) return;
+    try {
+      const res = await fetch('https://online-gateway.ghn.vn/shiip/public-api/v2/shipping-order/fee', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Token: GHN_TOKEN,
+          ShopId: '194726' // ShopId giả định
+        },
+        body: JSON.stringify({
+          from_district_id: 1442,
+          to_district_id: Number(districtId),
+          to_ward_code: wardCode,
+          service_type_id: 2,
+          height: 10,
+          length: 20,
+          width: 10,
+          weight: 2000,
+          insurance_value: 0
+        })
+      });
+      const data = await res.json();
+      if (data.code === 200) {
+        setShippingFee(data.data.total);
+      }
+    } catch (err) {
+      console.error('Lỗi tính phí ship GHN:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (isShipping && selectedDistrict && selectedWard) {
+      calculateShippingFee(selectedDistrict, selectedWard);
+    } else if (!isShipping) {
+      setShippingFee(0);
+    }
+  }, [isShipping, selectedDistrict, selectedWard]);
 
   // Fetch sản phẩm từ API
   useEffect(() => {
@@ -480,7 +568,7 @@ const BanHangTaiQuayPage = () => {
     }
     return sum;
   }, 0);
-  const totalThanhToan = totalHang - totalGiamGia;
+  const totalThanhToan = totalHang - totalGiamGia + (isShipping ? shippingFee : 0);
 
   // Lấy giá trị duy nhất cho màu sắc và size
   const colorOptions = [...new Set(products.map(p => p.mauSac).filter(Boolean))];
@@ -725,7 +813,9 @@ const BanHangTaiQuayPage = () => {
         idkhachHang: selectedCustomerId || null,
         tenKhachHang: !selectedCustomerId && customerName ? customerName : null,
         email: !selectedCustomerId && customerEmail ? customerEmail : null,
-        soDienThoai: !selectedCustomerId && customerPhone ? customerPhone : null
+        soDienThoai: !selectedCustomerId && customerPhone ? customerPhone : null,
+        phiVanChuyen: isShipping ? shippingFee : 0,
+        diaChiGiaoHang: isShipping ? `${shippingDetail}, ${wards.find(w => w.WardCode === selectedWard)?.WardName}, ${districts.find(d => d.DistrictID === selectedDistrict)?.DistrictName}, ${provinces.find(p => p.ProvinceID === selectedProvince)?.ProvinceName}` : null
       };
       const res = await fetch(`http://localhost:8080/api/xacnhanthanhtoan/${orderId}`, {
         method: 'PUT',
@@ -794,7 +884,9 @@ const BanHangTaiQuayPage = () => {
         idkhachHang: selectedCustomerId || null,
         tenKhachHang: !selectedCustomerId && customerName ? customerName : null,
         email: !selectedCustomerId && customerEmail ? customerEmail : null,
-        soDienThoai: !selectedCustomerId && customerPhone ? customerPhone : null
+        soDienThoai: !selectedCustomerId && customerPhone ? customerPhone : null,
+        phiVanChuyen: isShipping ? shippingFee : 0,
+        diaChiGiaoHang: isShipping ? `${shippingDetail}, ${wards.find(w => w.WardCode === selectedWard)?.WardName}, ${districts.find(d => d.DistrictID === selectedDistrict)?.DistrictName}, ${provinces.find(p => p.ProvinceID === selectedProvince)?.ProvinceName}` : null
       };
       const res = await fetch(`http://localhost:8080/api/xacnhanthanhtoan/${orderId}`, {
         method: 'PUT',
@@ -1222,6 +1314,14 @@ const BanHangTaiQuayPage = () => {
     setCollapsed(false);
     setCollapsedCart(false);
     setShowAllProducts(false);
+
+    // Reset shipping states
+    setIsShipping(false);
+    setShippingFee(0);
+    setSelectedProvince('');
+    setSelectedDistrict('');
+    setSelectedWard('');
+    setShippingDetail('');
   };
 
   return (
@@ -1597,6 +1697,81 @@ const BanHangTaiQuayPage = () => {
 
             {customerMessage && (
               <span className={`bhtq-customer-message ${customerMessage.includes('thành công') ? 'success' : 'error'}`}>{customerMessage}</span>
+            )}
+          </Box>
+          
+          {/* GIAO HÀNG */}
+          <Box mt={2}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div className="bhtq-cart-header" style={{ fontSize: 16 }}>Giao hàng</div>
+              <input 
+                type="checkbox" 
+                checked={isShipping} 
+                onChange={(e) => setIsShipping(e.target.checked)}
+                style={{ width: 20, height: 20, cursor: 'pointer' }}
+              />
+            </div>
+            
+            {isShipping && (
+              <Box mt={2} display="flex" flexDirection="column" gap={2}>
+                <Box display="flex" gap={2}>
+                  <TextField
+                    select
+                    label="Tỉnh/Thành phố"
+                    value={selectedProvince}
+                    onChange={(e) => setSelectedProvince(e.target.value)}
+                    size="small"
+                    fullWidth
+                  >
+                    {provinces.map((p) => (
+                      <MenuItem key={p.ProvinceID} value={p.ProvinceID}>{p.ProvinceName}</MenuItem>
+                    ))}
+                  </TextField>
+                  <TextField
+                    select
+                    label="Quận/Huyện"
+                    value={selectedDistrict}
+                    onChange={(e) => setSelectedDistrict(e.target.value)}
+                    size="small"
+                    fullWidth
+                    disabled={!selectedProvince}
+                  >
+                    {districts.map((d) => (
+                      <MenuItem key={d.DistrictID} value={d.DistrictID}>{d.DistrictName}</MenuItem>
+                    ))}
+                  </TextField>
+                  <TextField
+                    select
+                    label="Phường/Xã"
+                    value={selectedWard}
+                    onChange={(e) => setSelectedWard(e.target.value)}
+                    size="small"
+                    fullWidth
+                    disabled={!selectedDistrict}
+                  >
+                    {wards.map((w) => (
+                      <MenuItem key={w.WardCode} value={w.WardCode}>{w.WardName}</MenuItem>
+                    ))}
+                  </TextField>
+                </Box>
+                <Box display="flex" gap={2}>
+                  <TextField
+                    label="Địa chỉ chi tiết"
+                    value={shippingDetail}
+                    onChange={(e) => setShippingDetail(e.target.value)}
+                    size="small"
+                    fullWidth
+                  />
+                  <TextField
+                    label="Phí vận chuyển"
+                    type="number"
+                    value={shippingFee}
+                    onChange={(e) => setShippingFee(Number(e.target.value))}
+                    size="small"
+                    sx={{ minWidth: 150 }}
+                  />
+                </Box>
+              </Box>
             )}
           </Box>
         </div>

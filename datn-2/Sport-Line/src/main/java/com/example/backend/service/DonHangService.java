@@ -193,7 +193,9 @@ public List<DonHangDTO> filterByTrangThaiAndLoai(Integer trangThai, String loaiD
             Integer idkhachHang,
             String tenKhachHang,
             String email,
-            String soDienThoai
+            String soDienThoai,
+            Integer phiVanChuyen,
+            String diaChiGiaoHang
     ) {
         Optional<DonHang> optional = donHangRepository.findById(id);
         if (optional.isPresent()) {
@@ -214,6 +216,8 @@ public List<DonHangDTO> filterByTrangThaiAndLoai(Integer trangThai, String loaiD
             }
 
             donHang.setTrangThai(1); // Đã thanh toán
+            if (phiVanChuyen != null) donHang.setPhiVanChuyen(phiVanChuyen);
+            if (diaChiGiaoHang != null) donHang.setDiaChiGiaoHang(diaChiGiaoHang);
 
             // Luôn cập nhật lại tổng tiền và giảm giá dựa trên voucher hiện tại
             capNhatTongTienDonHang(donHang.getId());
@@ -253,6 +257,7 @@ public List<DonHangDTO> filterByTrangThaiAndLoai(Integer trangThai, String loaiD
         dto.setTrangThai(dh.getTrangThai());
         dto.setTongTien(dh.getTongTien());
         dto.setTongTienGiamGia(dh.getTongTienGiamGia());
+        dto.setPhiVanChuyen(dh.getPhiVanChuyen()); // Add this
         return dto;
     }
 
@@ -264,6 +269,7 @@ public List<DonHangDTO> filterByTrangThaiAndLoai(Integer trangThai, String loaiD
         dh.setTrangThai(dto.getTrangThai());
         dh.setTongTien(dto.getTongTien());
         dh.setTongTienGiamGia(dto.getTongTienGiamGia());
+        dh.setPhiVanChuyen(dto.getPhiVanChuyen() != null ? dto.getPhiVanChuyen() : 0); // null-safe
 
         if (dto.getIdnhanVien() != null) {
             Optional<NhanVien> nv = nhanVienRepository.findById(dto.getIdnhanVien());
@@ -324,12 +330,16 @@ public List<DonHangDTO> filterByTrangThaiAndLoai(Integer trangThai, String loaiD
             } else {
                 donHang.setTongTienGiamGia(0.0);
             }
-            donHang.setTongTien(tongTienGoc - giam);
-
+            
+            // ✅ SỬA: Phải cộng thêm phí ship vào tổng tiền
+            int ship = donHang.getPhiVanChuyen();
+            donHang.setTongTien(tongTienGoc - giam + ship);
+            
             donHangRepository.save(donHang);
         }
 
     // Tạo đơn mới
+    @jakarta.transaction.Transactional
     public DonHangDTO taoHoaDonOnline(HoaDonOnlineRequest req) {
         DonHang don = new DonHang();
         don.setNgayTao(LocalDate.now());
@@ -339,8 +349,13 @@ public List<DonHangDTO> filterByTrangThaiAndLoai(Integer trangThai, String loaiD
         don.setSoDienThoaiGiaoHang(req.getSoDienThoaiGiaoHang());
         don.setEmailGiaoHang(req.getEmailGiaoHang());
         don.setTenNguoiNhan(req.getTenNguoiNhan());
+        
+        // Cài đặt phiVanChuyen ban đầu (đảm bảo không null)
+        int incomingFee = (req.getPhiVanChuyen() != null) ? req.getPhiVanChuyen() : 0;
+        don.setPhiVanChuyen(incomingFee);
+        
         don.setKhachHang(khachHangRepository.findById(req.getIdKhachHang()).orElse(null));
-        don = donHangRepository.save(don);
+        // don = donHangRepository.save(don); // BỎ save trung gian
 
         double tongTien = 0;
         List<DonHangChiTiet> dsChiTiet = new ArrayList<>();
@@ -353,33 +368,59 @@ public List<DonHangDTO> filterByTrangThaiAndLoai(Integer trangThai, String loaiD
             sp.setSoLuong(sp.getSoLuong() - dto.getSoLuong());
             spctRepo.save(sp);
 
+            Double gia = (sp.getGiaBanGiamGia() != null && sp.getGiaBanGiamGia() > 0 && sp.getGiaBanGiamGia() < sp.getGiaBan())
+                    ? sp.getGiaBanGiamGia() : sp.getGiaBan();
+
             DonHangChiTiet ct = new DonHangChiTiet();
             ct.setDonHang(don);
             ct.setSanPhamChiTiet(sp);
             ct.setSoLuong(dto.getSoLuong());
-            ct.setGia(sp.getGiaBan());
-            ct.setThanhTien(dto.getSoLuong() * sp.getGiaBan());
+            ct.setGia(gia);
+            ct.setThanhTien(dto.getSoLuong() * gia);
             dsChiTiet.add(donHangChiTietRepository.save(ct));
             tongTien += ct.getThanhTien();
         }
 
         don.setDonHangChiTiets(dsChiTiet);
-        don.setTongTien(tongTien);
+        
+        // --- LOG DEBUG ---
+        System.out.println("DEBUG taoHoaDonOnline - INCOMING req.phiVanChuyen: " + req.getPhiVanChuyen());
+        System.out.println("DEBUG taoHoaDonOnline - calculated sum items: " + tongTien);
 
+        // Đảm bảo phiVanChuyen được set (lấy 0 nếu null)
+        int fee = (req.getPhiVanChuyen() != null) ? req.getPhiVanChuyen() : 0;
+        don.setPhiVanChuyen(fee);
+        System.out.println("DEBUG taoHoaDonOnline - don.setPhiVanChuyen: " + fee);
+
+        double giam = 0;
         if (req.getIdVoucher() != null) {
             Voucher v = voucherRepository.findById(req.getIdVoucher()).orElse(null);
             if (v != null) {
-                double giam = "TIEN".equalsIgnoreCase(v.getLoaiVoucher())
-                        ? v.getGiaTri()
-                        : tongTien * v.getGiaTri() / 100.0;
-
+                // ✅ FIX: Dùng đúng loaiVoucher trong DB ("Giảm giá số tiền" hoặc "Giảm giá %")
+                giam = tinhTienGiamVoucher(tongTien, v);
                 don.setGiamGia(v);
-                don.setTongTienGiamGia(giam);
-                don.setTongTien(tongTien - giam);
+                System.out.println("DEBUG taoHoaDonOnline - Apply Voucher giam: " + giam);
             }
         }
+        don.setTongTienGiamGia(giam);
+        
+        // Tính tổng thanh toán cuối cùng = Tổng tiền sản phẩm - Giảm giá voucher + Phí vận chuyển
+        double finalTongTien = tongTien - giam + fee;
+        
+        // --- FIX: Ưu tiên sử dụng tổng tiền Frontend gửi lên nếu có (đã bao gồm voucher, chưa gồm ship) ---
+        if (req.getTongTien() != null && req.getTongTien() > 0) {
+            // finalTongTien = Tổng do Frontend tính + Phí vận chuyển
+            finalTongTien = req.getTongTien() + fee;
+            System.out.println("DEBUG taoHoaDonOnline - OVERRIDE finalTongTien bằng dữ liệu Frontend: " + finalTongTien);
+        }
+        
+        don.setTongTien(finalTongTien);
+        System.out.println("DEBUG taoHoaDonOnline - SETTING FINAL tongTien: " + finalTongTien);
 
+        // Lưu duy nhất 1 lần thay vì lưu nhiều lần
         don = donHangRepository.save(don);
+        System.out.println("DEBUG taoHoaDonOnline - SAVED ORDER ID: " + don.getId());
+        
         return new DonHangDTO(don);
     }
 
@@ -426,7 +467,8 @@ public List<DonHangDTO> filterByTrangThaiAndLoai(Integer trangThai, String loaiD
             String tenNguoiNhanMoi,
             String emailMoi,
             Integer districtId,
-            String wardCode
+            String wardCode,
+            Integer phiVanChuyenMoi
     ) {
         DonHang don = donHangRepository.findById(id).orElseThrow();
 
@@ -434,13 +476,22 @@ public List<DonHangDTO> filterByTrangThaiAndLoai(Integer trangThai, String loaiD
         don.setSoDienThoaiGiaoHang(sdtMoi);
         don.setTenNguoiNhan(tenNguoiNhanMoi);
         don.setEmailGiaoHang(emailMoi);
+        
+        // Tính phí vận chuyển và lưu vào đơn hàng
+        int phiVanChuyen;
+        if (phiVanChuyenMoi != null) {
+            phiVanChuyen = phiVanChuyenMoi;
+        } else {
+            phiVanChuyen = ghnClientService.tinhPhiVanChuyen(districtId, wardCode, 3000);
+        }
+        don.setPhiVanChuyen(phiVanChuyen);
+        
+        // Cập nhật lại tổng tiền đơn hàng bao gồm phí ship mới
+        capNhatTongTienDonHang(don.getId());
+        
         donHangRepository.save(don);
 
-        int phiVanChuyen = ghnClientService.tinhPhiVanChuyen(districtId, wardCode, 3000);
-
-        DonHangDTO dto = new DonHangDTO(don);
-        dto.setPhiVanChuyen(phiVanChuyen); // ✅ không lưu DB
-        return dto;
+        return new DonHangDTO(don);
     }
 
     private int tinhPhiGHN(int districtId, String wardCode) {

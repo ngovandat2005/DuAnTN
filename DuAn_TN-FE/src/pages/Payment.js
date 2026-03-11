@@ -18,6 +18,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 // ✅ THÊM: Function kiểm tra số lượng đơn hàng hiện tại của khách hàng
 const checkCustomerOrderLimit = async (customerId) => {
   try {
+    // GỌI TRỰC TIẾP API ĐƠN HÀNG Ở PORT 8080 (như ban đầu)
     const response = await fetch(`http://localhost:8080/api/donhang/khach/${customerId}`);
     if (!response.ok) {
       throw new Error('Không thể kiểm tra đơn hàng của khách hàng');
@@ -379,9 +380,14 @@ const Payment = () => {
   useEffect(() => {
     setOrderTotal(total);
     setOrderDiscount(0);
-    // ✅ THÊM: Cập nhật finalTotal khi total hoặc shippingFee thay đổi
-    setFinalTotal(total + shippingFee);
-  }, [total, shippingFee]);
+  }, [total]);
+
+  // ✅ THÊM: Cập nhật finalTotal duy nhất ở một nơi để tránh xung đột
+  useEffect(() => {
+    const newFinalTotal = total - orderDiscount + shippingFee;
+    setFinalTotal(newFinalTotal);
+    console.log('💰 [REACTIVE] Cập nhật finalTotal:', { total, orderDiscount, shippingFee, final: newFinalTotal });
+  }, [total, orderDiscount, shippingFee]);
 
   // ✅ THÊM: Tự động tính phí ship khi địa chỉ thay đổi
   useEffect(() => {
@@ -422,13 +428,6 @@ const Payment = () => {
           console.log('🎯 Giảm giá cuối cùng:', finalDiscount);
 
           setOrderDiscount(finalDiscount);
-          setOrderTotal(total - finalDiscount);
-
-          // ✅ QUAN TRỌNG: Cập nhật finalTotal để hiển thị đúng
-          const newFinalTotal = (total - finalDiscount) + shippingFee;
-          setFinalTotal(newFinalTotal);
-
-          console.log('💰 Sau khi áp dụng voucher: orderDiscount=', finalDiscount, 'orderTotal=', total - finalDiscount, 'finalTotal=', newFinalTotal);
 
           toast.success(`Đã chọn voucher: ${voucher.tenVoucher}`);
           setVoucherMessage(`Voucher đã được áp dụng! Giảm ${finalDiscount.toLocaleString()}₫`);
@@ -1096,7 +1095,7 @@ const Payment = () => {
           paymentMethod,
           // ✅ SỬA: Gửi finalTotal (đã bao gồm phí ship từ GHN)
           tongTien: finalTotal, // Tổng tiền đã bao gồm phí ship thực tế
-          phiVanChuyen: shippingFee, // Phí ship từ GHN API
+          phiVanChuyen: Number(shippingFee || 0), // Phí ship từ GHN API - Đảm bảo là số
           finalAmount: finalTotal, // Sử dụng finalTotal thay vì orderTotal + shippingFee
           trangThai: 1, // Thanh toán chuyển khoản thành công -> Đã xác nhận
           ngayTao: new Date().toISOString().slice(0, 10),
@@ -1177,24 +1176,26 @@ const Payment = () => {
 
       // BƯỚC 1: Tạo đơn hàng cơ bản với API create-online
       const orderData = {
-        idkhachHang: customerId, // ID khách hàng từ user đang đăng nhập
+        idKhachHang: customerId, // ✅ SỬA: idkhachHang -> idKhachHang
         idnhanVien: null,
-        idgiamGia: selectedVoucherId || null,
+        idVoucher: selectedVoucherId || null, // ✅ SỬA: idgiamGia -> idVoucher
         ngayTao: null,
-        // ✅ QUAN TRỌNG: Gửi finalTotal (đã bao gồm phí ship)
-        tongTien: finalTotal, // 660k (630k + 30k ship) - Frontend đã tính xong
-        tongTienGiamGia: orderDiscount, // 70k (nếu có voucher)
-        phiVanChuyen: shippingFee, // Phí ship từ GHN API
+        // ✅ QUAN TRỌNG: Gửi tiền hàng (chưa gồm ship) vì backend sẽ tự cộng phiVanChuyen
+        tongTien: Number(finalTotal || 0) - Number(shippingFee || 0),
+        tongTienGiamGia: orderDiscount,
+        phiVanChuyen: Number(shippingFee || 0), // ✅ Đảm bảo là số, tránh null
         tenNguoiNhan: customerName,
         soDienThoaiGiaoHang: customerPhone,
         emailGiaoHang: customerEmail,
-        // ✅ SỬA: Chỉ sử dụng customerAddress (đã bao gồm địa chỉ chi tiết)
         diaChiGiaoHang: customerAddress,
-        loaiDonHang: 'online', // Sử dụng chữ thường để phù hợp với Backend
-        trangThai: 0 // COD: Chờ xác nhận (cần xác nhận thủ công)
+        loaiDonHang: 'online',
+        trangThai: 0
       };
 
 
+      console.log('🚀 [COD] Gửi dữ liệu tạo đơn hàng:', orderData);
+      console.log('🔍 [COD] DEBUG - shippingFee:', shippingFee);
+      console.log('🔍 [COD] DEBUG - finalTotal:', finalTotal);
 
       const orderRes = await fetch(config.getApiUrl('api/donhang/online'), {
         method: 'POST',
@@ -1984,6 +1985,24 @@ const Payment = () => {
               }
               return null;
             })()}
+
+            {/* ✅ THÊM: DEBUG BOX TRỰC TIẾP TRÊN TRANG THANH TOÁN */}
+            <div style={{
+              background: '#fffbe6',
+              border: '2px solid #ffe58f',
+              padding: '10px',
+              borderRadius: '8px',
+              marginBottom: '15px',
+              fontSize: '12px',
+              fontFamily: 'monospace'
+            }}>
+              <strong style={{ color: '#856404' }}>🔍 DEBUG DỮ LIỆU THANH TOÁN:</strong><br />
+              - Tiền hàng (chưa voucher): {total}<br />
+              - Giảm giá voucher: {orderDiscount}<br />
+              - Phí vận chuyển: {shippingFee}<br />
+              - TỔNG THANH TOÁN (final): {finalTotal}<br />
+              <span style={{ color: '#d46b08' }}>* Chụp ảnh bảng này nếu vẫn gặp lỗi!</span>
+            </div>
 
             {/* ✅ THÊM: Hiển thị tổng tiền sau khi áp dụng voucher */}
             {selectedVoucherId && orderDiscount > 0 && (

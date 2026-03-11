@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Result, Button } from 'antd';
 import { ToastContainer, toast } from 'react-toastify';
@@ -10,7 +10,7 @@ import config from "../config/config";
 // ✅ THÊM: Function kiểm tra số lượng đơn hàng hiện tại của khách hàng
 const checkCustomerOrderLimit = async (customerId) => {
   try {
-    const response = await fetch(`http://localhost:8080/api/donhang/khach/${customerId}`);
+    const response = await fetch(config.getApiUrl(`api/donhang/khach/${customerId}`));
     if (!response.ok) {
       throw new Error('Không thể kiểm tra đơn hàng của khách hàng');
     }
@@ -49,6 +49,7 @@ const CheckPayment = () => {
   const [title, setTitle] = useState("Đang xử lý thanh toán...");
   const [loading, setLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
+  const hasProcessed = useRef(false); // ✅ Guard against double processing
 
   // ✅ Function xử lý cart item
   const processCartItem = (item, index) => {
@@ -184,7 +185,7 @@ const CheckPayment = () => {
       console.log('🎫 Voucher ID:', voucherId);
 
       console.log('🚀 Gọi API apply-voucher...');
-      const response = await fetch(`http://localhost:8080/api/donhang/${orderId}/apply-voucher/${voucherId}`, {
+      const response = await fetch(config.getApiUrl(`api/donhang/${orderId}/apply-voucher/${voucherId}`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
@@ -221,11 +222,12 @@ const CheckPayment = () => {
 
   // ✅ Function xử lý đơn hàng thành công
   const processSuccessfulOrder = async (orderInfo) => {
-    if (isProcessing) {
-      console.log('⚠️ Đơn hàng đang được xử lý, bỏ qua...');
+    if (isProcessing || hasProcessed.current) {
+      console.log('⚠️ Đơn hàng đang được xử lý hoặc đã xử lý xong, bỏ qua...');
       return;
     }
 
+    hasProcessed.current = true;
     setIsProcessing(true);
 
     try {
@@ -293,20 +295,33 @@ const CheckPayment = () => {
 
       console.log('✅ Khách hàng có thể tạo đơn hàng mới:', orderLimitCheck.message);
 
+      // Chuyển đổi cart sang định dạng backend SanPhamDatDTO
+      const sanPhamDat = orderInfo.cart.map((item, idx) => {
+        const processed = processCartItem(item, idx);
+        return {
+          idSanPhamChiTiet: processed.idSanPhamChiTiet,
+          soLuong: processed.soLuong
+        };
+      });
+
       const orderData = {
-        idkhachHang: customerId,
+        idKhachHang: customerId, // ✅ SỬA: idkhachHang -> idKhachHang
         tenNguoiNhan: orderInfo.tenNguoiNhan,
         soDienThoaiGiaoHang: orderInfo.soDienThoaiGiaoHang,
         emailGiaoHang: orderInfo.emailGiaoHang,
         diaChiGiaoHang: orderInfo.diaChiGiaoHang,
-        loaiDonHang: 'online',
-        tongTien: orderInfo.tongTien,
-        phiVanChuyen: orderInfo.phiVanChuyen,
-        trangThai: 1,
-        ...(orderInfo.selectedVoucherId && { idgiamGia: orderInfo.selectedVoucherId })
+        idVoucher: orderInfo.selectedVoucherId || null,
+        tongTien: Number(orderInfo.tongTien || 0) - Number(orderInfo.phiVanChuyen || 0), // ✅ SỬA: Đảm bảo là số
+        phiVanChuyen: Number(orderInfo.phiVanChuyen || 0), // ✅ SỬA: Đảm bảo là số
+        sanPhamDat: sanPhamDat // ✅ SỬA: cart -> sanPhamDat
       };
 
       console.log('🚀 Gửi dữ liệu tạo đơn hàng:', orderData);
+      console.log('🔍 DEBUG - orderInfo.phiVanChuyen:', orderInfo.phiVanChuyen);
+      console.log('🔍 DEBUG - orderInfo.tongTien:', orderInfo.tongTien);
+      console.log('🔍 DEBUG - Final phiVanChuyen in orderData:', orderData.phiVanChuyen);
+      console.log('🔍 DEBUG - Final tongTien in orderData:', orderData.tongTien);
+
       console.log('💰 Chi tiết tiền:');
       console.log('   - Tiền hàng (sau voucher):', orderInfo.tongTien);
       console.log('   - Phí vận chuyển:', orderInfo.phiVanChuyen);
@@ -315,7 +330,7 @@ const CheckPayment = () => {
         console.log('   - Voucher ID:', orderInfo.selectedVoucherId);
       }
 
-      const orderRes = await fetch('http://localhost:8080/api/donhang/online', {
+      const orderRes = await fetch(config.getApiUrl('api/donhang/online'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(orderData)
@@ -329,139 +344,17 @@ const CheckPayment = () => {
 
       const createdOrder = await orderRes.json();
       const finalOrderId = createdOrder.id;
-      console.log('✅ Đã tạo đơn hàng mới với ID:', finalOrderId, 'và trạng thái 0');
-
-      // ✅ BƯỚC 2: Tạo đơn hàng chi tiết
-      console.log('Bước 2: Tạo đơn hàng chi tiết...');
-      console.log('📊 Số lượng sản phẩm trong giỏ hàng:', orderInfo.cart.length);
-      console.log('📋 Chi tiết giỏ hàng:', orderInfo.cart);
-
-      if (!Array.isArray(orderInfo.cart) || orderInfo.cart.length === 0) {
-        throw new Error('Cart data không hợp lệ hoặc trống');
-      }
-
-      console.log('✅ Cart data hợp lệ, bắt đầu tạo chi tiết đơn hàng...');
-
-      for (let i = 0; i < orderInfo.cart.length; i++) {
-        const item = orderInfo.cart[i];
-
-        // 🔍 DEBUG: Log chi tiết item gốc từ giỏ hàng
-        console.log(`🔍 === DEBUG ITEM ${i + 1} ===`);
-        console.log(`📦 Item gốc từ giỏ hàng:`, item);
-        console.log(`🔑 Keys của item:`, Object.keys(item));
-        console.log(`🆔 idSanPhamChiTiet gốc:`, item.idSanPhamChiTiet);
-        console.log(`🆔 id gốc:`, item.id);
-        console.log(`💰 Giá gốc:`, item.giaBan);
-        console.log(`💰 Giá khuyến mãi:`, item.giaBanGiamGia);
-        console.log(`📊 Số lượng:`, item.soLuong);
-
-        const processedItem = processCartItem(item, i);
-
-        if (!processedItem) {
-          console.error(`❌ Không thể xử lý item ${i + 1}:`, item);
-          throw new Error(`Không thể xử lý item ${i + 1} - cấu trúc không hợp lệ`);
-        }
-
-        // 🔍 DEBUG: Log chi tiết item sau khi xử lý
-        console.log(`✅ === SAU KHI XỬ LÝ ITEM ${i + 1} ===`);
-        console.log(`📦 Item đã xử lý:`, processedItem);
-        console.log(`🆔 idSanPhamChiTiet sau xử lý:`, processedItem.idSanPhamChiTiet);
-        console.log(`💰 Giá sau xử lý:`, processedItem.gia);
-        console.log(`📊 Số lượng sau xử lý:`, processedItem.soLuong);
-        console.log(`🏷️ Nguồn:`, processedItem.source);
-
-        const chiTietData = {
-          idDonHang: finalOrderId,
-          idSanPhamChiTiet: processedItem.idSanPhamChiTiet,
-          soLuong: processedItem.soLuong,
-          gia: processedItem.gia,
-          thanhTien: processedItem.thanhTien,
-        };
-
-        // 🔍 DEBUG: Log dữ liệu gửi lên API
-        console.log(`📤 === DỮ LIỆU GỬI LÊN API ${i + 1} ===`);
-        console.log(`📝 Chi tiết đơn hàng:`, chiTietData);
-        console.log(`🆔 idSanPhamChiTiet gửi lên:`, chiTietData.idSanPhamChiTiet);
-        console.log(`💰 Giá gửi lên:`, chiTietData.gia);
-        console.log(`📊 Số lượng gửi lên:`, chiTietData.soLuong);
-        console.log(`📊 Nguồn: ${processedItem.source}`);
-
-        const chiTietRes = await fetch('http://localhost:8080/api/donhangchitiet/create', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(chiTietData)
-        });
-
-        if (!chiTietRes.ok) {
-          const errorText = await chiTietRes.text();
-          console.error(`❌ Lỗi khi tạo chi tiết sản phẩm ${i + 1}:`, errorText);
-          throw new Error(`Lỗi khi tạo chi tiết sản phẩm ${i + 1}: ${errorText}`);
-        }
-
-        const chiTietResult = await chiTietRes.json();
-        console.log(`✅ Đã tạo chi tiết đơn hàng ${i + 1} thành công:`, chiTietResult);
-      }
-
-      // ✅ BƯỚC 3: Cập nhật tổng tiền đơn hàng (chỉ khi KHÔNG có voucher)
-      if (!orderInfo.selectedVoucherId) {
-        console.log('Bước 3: Không có voucher - cập nhật tổng tiền đơn hàng...');
-
-        try {
-          const updateTotalRes = await fetch(`http://localhost:8080/api/don-hang/${finalOrderId}/cap-nhat-tong-tien`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' }
-          });
-
-          if (updateTotalRes.ok) {
-            const updatedOrder = await updateTotalRes.json();
-            console.log('✅ Đã cập nhật tổng tiền đơn hàng thành công:', updatedOrder);
-            console.log('💰 Tổng tiền sau khi cập nhật:', updatedOrder.tongTien);
-            console.log('🚚 Phí vận chuyển:', updatedOrder.phiVanChuyen);
-          } else {
-            console.warn('⚠️ Không thể cập nhật tổng tiền đơn hàng, nhưng đơn hàng đã được tạo');
-          }
-        } catch (updateTotalError) {
-          console.warn('⚠️ Lỗi khi cập nhật tổng tiền đơn hàng:', updateTotalError);
-        }
-      } else {
-        console.log('Bước 3: Có voucher - KHÔNG cần cập nhật tổng tiền (backend đã tính đúng)');
-      }
-
-      // ✅ BƯỚC 4: Áp dụng voucher nếu có (Backend tự động xử lý số lượng)
-      if (orderInfo.selectedVoucherId) {
-        console.log('🎫 === BƯỚC 4: ÁP DỤNG VOUCHER ===');
-        console.log('🎫 Voucher ID:', orderInfo.selectedVoucherId);
-        console.log('📦 Order ID:', finalOrderId);
-
-        try {
-          // ✅ SỬA: Sử dụng function áp dụng voucher (đơn giản hóa)
-          const voucherApplied = await applyVoucherToOrder(finalOrderId, orderInfo.selectedVoucherId);
-
-          if (voucherApplied) {
-            console.log('✅ Voucher đã được áp dụng thành công!');
-          } else {
-            console.warn('⚠️ Không thể áp dụng voucher hoàn toàn, nhưng đơn hàng đã được tạo');
-            toast.warning('⚠️ Voucher không thể được xử lý hoàn toàn, nhưng đơn hàng đã được tạo');
-          }
-        } catch (voucherError) {
-          console.error('❌ Lỗi khi áp dụng voucher:', voucherError);
-          toast.error('❌ Lỗi khi áp dụng voucher: ' + voucherError.message, {
-            position: "top-center",
-            autoClose: 5000,
-          });
-        }
-      } else {
-        console.log('Bước 4: Không có voucher để áp dụng');
-      }
+      console.log('✅ Đã tạo đơn hàng thành công qua backend (đã bao gồm chi tiết và voucher):', finalOrderId);
 
       // ✅ BƯỚC 5: Cập nhật trạng thái đơn hàng
       console.log('Bước 5: Cập nhật trạng thái đơn hàng...');
 
       try {
-        const updateRes = await fetch(`http://localhost:8080/api/donhang/${finalOrderId}/status`, {
+        console.log(`🔄 Gọi API cập nhật trạng thái đơn hàng #${finalOrderId}...`);
+        // ✅ SỬA: URL đúng là /api/don-hang/${id}/trang-thai?value=1
+        const updateRes = await fetch(config.getApiUrl(`api/don-hang/${finalOrderId}/trang-thai?value=1`), {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ trangThai: 1 }) // Cập nhật trạng thái thành 1 (đã thanh toán)
+          headers: { 'Content-Type': 'application/json' }
         });
 
         if (updateRes.ok) {
@@ -563,7 +456,7 @@ const CheckPayment = () => {
 
           try {
             const { data } = await axios.get(
-              `http://localhost:8080/api/payment/vnpay-return?${searchParams.toString()}`
+              config.getApiUrl(`api/payment/vnpay-return?${searchParams.toString()}`)
             );
             console.log('✅ Backend response:', data);
           } catch (backendError) {
@@ -607,14 +500,10 @@ const CheckPayment = () => {
             }
           } else {
             console.log('⚠️ Không có đơn hàng chờ');
-            toast.info('✅ Thanh toán thành công! Chuyển về trang chủ...', {
+            toast.success('🎉 Đơn hàng đã được ghi nhận thành công!', {
               position: "top-center",
               autoClose: 2000,
             });
-
-            setTimeout(() => {
-              navigate('/');
-            }, 2000);
           }
 
         } else if (vnpResponseCode) {

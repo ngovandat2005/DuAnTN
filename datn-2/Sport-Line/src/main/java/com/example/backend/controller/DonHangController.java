@@ -133,7 +133,9 @@
                     request.getIdkhachHang(),
                     request.getTenKhachHang(),
                     request.getEmail(),
-                    request.getSoDienThoai()
+                    request.getSoDienThoai(),
+                    request.getPhiVanChuyen(),
+                    request.getDiaChiGiaoHang()
             );
             return updated != null ? ResponseEntity.ok(updated) : ResponseEntity.notFound().build();
         }
@@ -175,9 +177,10 @@
                                                     @RequestParam String tenNguoiNhanMoi,
                                                     @RequestParam String emailMoi,
                                                     @RequestParam Integer districtId,
-                                                    @RequestParam String wardCode) {
+                                                    @RequestParam String wardCode,
+                                                    @RequestParam(required = false) Integer phiVanChuyenMoi) {
             DonHangDTO dto = donHangService.capNhatDiaChiVaTinhPhi(
-                    id, diaChiMoi, soDienThoaiMoi, tenNguoiNhanMoi, emailMoi, districtId, wardCode
+                    id, diaChiMoi, soDienThoaiMoi, tenNguoiNhanMoi, emailMoi, districtId, wardCode, phiVanChuyenMoi
             );
             return ResponseEntity.ok(dto);
         }

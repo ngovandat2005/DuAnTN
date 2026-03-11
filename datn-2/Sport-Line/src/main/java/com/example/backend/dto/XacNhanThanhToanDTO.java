@@ -9,6 +9,8 @@ public class XacNhanThanhToanDTO {
     private Double tongTien;
     private Integer idkhachHang;
     private String tenKhachHang;
-    private String email;         // Thêm trường này
+    private String email;
     private String soDienThoai;
+    private Integer phiVanChuyen; // Thêm phí vận chuyển
+    private String diaChiGiaoHang; // Thêm địa chỉ giao hàng
 }

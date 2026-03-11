@@ -173,7 +173,7 @@ public class VoucherService {
             if (isInvalid) {
                 for (DonHang dh : donHangsWithVoucher) {
                     dh.setGiamGia(null);
-                    dh.setTongTienGiamGia(dh.getTongTien());
+                    dh.setTongTienGiamGia(dh.getTongTien() != null ? dh.getTongTien() : 0d);
                     donHangsToUpdate.add(dh);
                 }
 
@@ -206,7 +206,7 @@ public class VoucherService {
         Voucher voucher = voucherRepository.findById(idVoucher)
                 .orElseThrow(() -> new RuntimeException("Voucher không tồn tại"));
 
-        double tongTien = dh.getTongTien();
+        double tongTien = dh.getTongTien() != null ? dh.getTongTien() : 0d;
 
         // Kiểm tra điều kiện áp dụng voucher
         if (voucher.getTrangThai() == null || voucher.getTrangThai() != 1) {
@@ -231,7 +231,7 @@ public class VoucherService {
 
         // Gán voucher và tính lại tổng tiền giảm giá
         dh.setGiamGia(voucher);
-        dh.setTongTienGiamGia(tinhTongTienSauGiam(dh.getTongTien(), voucher));
+        dh.setTongTienGiamGia(tinhTongTienSauGiam(tongTien, voucher));
 
         // Trừ số lượng nếu đơn hàng đã hoàn tất
         if ("".equals(dh.getTrangThai())) {
@@ -243,7 +243,7 @@ public class VoucherService {
         Voucher voucher = voucherRepository.findById(idVoucher)
                 .orElseThrow(() -> new RuntimeException("Voucher không tồn tại"));
 
-        double tongTien = dh.getTongTien();
+        double tongTien = dh.getTongTien() != null ? dh.getTongTien() : 0d;
 
         if (voucher.getTrangThai() == null || voucher.getTrangThai() != 1) {
             throw new RuntimeException("Voucher không hoạt động");

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Swal from 'sweetalert2';
+import config from '../config/config';
 
 const TRANG_THAI = [
   { value: 0, label: 'Chờ xác nhận', color: '#ff9800' },
@@ -32,13 +33,13 @@ const OrderDetail = () => {
       setError('');
 
       // Fetch thông tin đơn hàng
-      const orderResponse = await axios.get(`http://localhost:8080/api/donhang/chi-tiet/${id}`);
+      const orderResponse = await axios.get(config.getApiUrl(`api/donhang/chi-tiet/${id}`));
       setOrder(orderResponse.data);
 
       // Fetch thông tin voucher nếu có
       if (orderResponse.data.idgiamGia) {
         try {
-          const voucherResponse = await axios.get(`http://localhost:8080/api/voucher/${orderResponse.data.idgiamGia}`);
+          const voucherResponse = await axios.get(config.getApiUrl(`api/voucher/${orderResponse.data.idgiamGia}`));
           setVoucherInfo(voucherResponse.data);
         } catch (voucherErr) {
           console.warn('Không thể fetch thông tin voucher:', voucherErr);
@@ -47,14 +48,14 @@ const OrderDetail = () => {
       }
 
       // Fetch chi tiết sản phẩm
-      const productsResponse = await axios.get(`http://localhost:8080/api/donhangchitiet/don-hang/${id}`);
+      const productsResponse = await axios.get(config.getApiUrl(`api/donhangchitiet/don-hang/${id}`));
       const products = productsResponse.data;
 
       // Fetch thông tin chi tiết từng sản phẩm
       const productDetails = await Promise.all(
         products.map(async (item) => {
           try {
-            const productResponse = await axios.get(`http://localhost:8080/api/san-pham-chi-tiet/spct/${item.idSanPhamChiTiet}`);
+            const productResponse = await axios.get(config.getApiUrl(`api/san-pham-chi-tiet/spct/${item.idSanPhamChiTiet}`));
             return {
               ...item,
               tenSanPham: productResponse.data?.tenSanPham || '---',
@@ -152,7 +153,7 @@ const OrderDetail = () => {
           Swal.showValidationMessage('Vui lòng chọn lý do hủy đơn hàng!');
           return false;
         }
-        
+
         let finalReason = selectedReason.value;
         if (finalReason === 'Lý do khác') {
           const customReason = document.getElementById('customReason').value.trim();
@@ -162,14 +163,14 @@ const OrderDetail = () => {
           }
           finalReason = customReason;
         }
-        
+
         return finalReason;
       },
       didOpen: () => {
         // Xử lý hiện/ẩn ô nhập lý do khác
         const reasonInputs = document.querySelectorAll('input[name="reason"]');
         const customReasonDiv = document.getElementById('customReasonDiv');
-        
+
         reasonInputs.forEach(input => {
           input.addEventListener('change', () => {
             if (input.value === 'Lý do khác') {
@@ -187,7 +188,7 @@ const OrderDetail = () => {
         const response = await axios.put(`http://localhost:8080/api/donhang/huy/${id}`, {
           ghiChu: formValues
         });
-        
+
         if (response.status === 200) {
           Swal.fire({
             icon: 'success',
@@ -214,30 +215,30 @@ const OrderDetail = () => {
   const renderOrderStatusStepper = (currentStatus) => {
     // Tạo mảng các bước thực tế mà đơn hàng đã trải qua
     let actualSteps = [];
-    
+
     // Luôn có bước đầu tiên (chờ xác nhận)
     actualSteps.push(TRANG_THAI[0]);
-    
+
     // Nếu đơn hàng đã được xác nhận (trạng thái >= 1)
     if (currentStatus >= 1) {
       actualSteps.push(TRANG_THAI[1]);
     }
-    
+
     // Nếu đơn hàng đang chuẩn bị (trạng thái >= 2)
     if (currentStatus >= 2) {
       actualSteps.push(TRANG_THAI[2]);
     }
-    
+
     // Nếu đơn hàng đang giao (trạng thái >= 3)
     if (currentStatus >= 3) {
       actualSteps.push(TRANG_THAI[3]);
     }
-    
+
     // Nếu đơn hàng hoàn thành (trạng thái >= 4)
     if (currentStatus >= 4) {
       actualSteps.push(TRANG_THAI[4]);
     }
-    
+
     // Xử lý trường hợp đặc biệt: Nếu đơn hàng bị hủy (trạng thái = 5)
     // Sử dụng dữ liệu trangThaiTruocKhiHuy từ backend để hiển thị chính xác
     if (currentStatus === 5) {
@@ -245,10 +246,10 @@ const OrderDetail = () => {
       if (order && order.trangThaiTruocKhiHuy !== null && order.trangThaiTruocKhiHuy !== undefined) {
         // Có dữ liệu chính xác từ backend
         let stepsBeforeCancel = [];
-        
+
         // Luôn có bước đầu tiên (chờ xác nhận)
         stepsBeforeCancel.push(TRANG_THAI[0]);
-        
+
         // Thêm các bước đã đi qua dựa trên trạng thái thực tế từ backend
         if (order.trangThaiTruocKhiHuy >= 1) {
           stepsBeforeCancel.push(TRANG_THAI[1]); // Đã xác nhận
@@ -259,10 +260,10 @@ const OrderDetail = () => {
         if (order.trangThaiTruocKhiHuy >= 3) {
           stepsBeforeCancel.push(TRANG_THAI[3]); // Đang giao
         }
-        
+
         // Thêm bước hủy vào cuối
         actualSteps = [...stepsBeforeCancel, TRANG_THAI[5]];
-        
+
         console.log('🎯 Đơn hàng bị hủy - Sử dụng dữ liệu từ backend:');
         console.log('📍 Trạng thái trước khi hủy:', order.trangThaiTruocKhiHuy);
         console.log('📍 Các bước hiển thị:', actualSteps.map(s => s.label));
@@ -272,17 +273,17 @@ const OrderDetail = () => {
         console.log('⚠️ Không có dữ liệu trangThaiTruocKhiHuy, sử dụng logic cũ');
       }
     }
-    
+
     // Xử lý trường hợp đặc biệt: Nếu đơn hàng giao hàng không thành công (trạng thái = 7)
     if (currentStatus === 7) {
       // Sử dụng dữ liệu trangThaiTruocKhiHuy từ backend để hiển thị chính xác
       if (order && order.trangThaiTruocKhiHuy !== null && order.trangThaiTruocKhiHuy !== undefined) {
         // Có dữ liệu chính xác từ backend
         let stepsBeforeFailed = [];
-        
+
         // Luôn có bước đầu tiên (chờ xác nhận)
         stepsBeforeFailed.push(TRANG_THAI[0]);
-        
+
         // Thêm các bước đã đi qua dựa trên trạng thái thực tế từ backend
         if (order.trangThaiTruocKhiHuy >= 1) {
           stepsBeforeFailed.push(TRANG_THAI[1]); // Đã xác nhận
@@ -293,10 +294,10 @@ const OrderDetail = () => {
         if (order.trangThaiTruocKhiHuy >= 3) {
           stepsBeforeFailed.push(TRANG_THAI[3]); // Đang giao
         }
-        
+
         // Thêm bước giao hàng không thành công vào cuối
         actualSteps = [...stepsBeforeFailed, TRANG_THAI.find(t => t.value === 7)];
-        
+
         console.log('🎯 Đơn hàng giao hàng không thành công - Sử dụng dữ liệu từ backend:');
         console.log('📍 Trạng thái trước khi giao hàng không thành công:', order.trangThaiTruocKhiHuy);
         console.log('📍 Các bước hiển thị:', actualSteps.map(s => s.label));
@@ -304,17 +305,17 @@ const OrderDetail = () => {
         // Fallback: sử dụng logic cũ nếu không có dữ liệu từ backend
         // Hiển thị đầy đủ quy trình đã đi qua
         actualSteps = [
-          TRANG_THAI[0], 
-          TRANG_THAI[1], 
-          TRANG_THAI[2], 
-          TRANG_THAI[3], 
+          TRANG_THAI[0],
+          TRANG_THAI[1],
+          TRANG_THAI[2],
+          TRANG_THAI[3],
           TRANG_THAI.find(t => t.value === 7)
-        ]; 
+        ];
         // Chờ xác nhận -> Đã xác nhận -> Đang chuẩn bị -> Đang giao -> Giao hàng không thành công
         console.log('⚠️ Không có dữ liệu trangThaiTruocKhiHuy, sử dụng logic cũ');
       }
     }
-    
+
     return (
       <div style={{ display: 'flex', alignItems: 'center', margin: '24px 0' }}>
         {actualSteps.map((tt, idx) => (
@@ -367,22 +368,22 @@ const OrderDetail = () => {
 
   // Tính tổng kết đơn hàng
   const tongTienHang = orderProducts.reduce((sum, sp) => {
-    const finalPrice = sp.giaBanGiamGia && sp.giaBanGiamGia < sp.giaBan 
-                      ? sp.giaBanGiamGia 
-                      : sp.giaBan;
+    const finalPrice = sp.giaBanGiamGia && sp.giaBanGiamGia < sp.giaBan
+      ? sp.giaBanGiamGia
+      : sp.giaBan;
     return sum + (finalPrice * sp.soLuong);
   }, 0);
-  
-  const tongGiamGia = order && order.tongTienGiamGia ? order.tongTienGiamGia : 0;
-  const tienShip = order && order.phiVanChuyen ? order.phiVanChuyen : 0;
-  
+
+  const tongGiamGia = order && order.tongTienGiamGia ? Number(order.tongTienGiamGia) : 0;
+  const tienShip = order && (order.phiVanChuyen !== null && order.phiVanChuyen !== undefined) ? Number(order.phiVanChuyen) : 0;
+
   // ✅ SỬA: Tính tổng tiền đúng cách - bao gồm phí ship
   let tongTien = 0;
-  
+
   // Luôn tính lại để đảm bảo chính xác
   const tongTienHangTinh = orderProducts.reduce((sum, sp) => sum + (sp.thanhTien || 0), 0);
   tongTien = tongTienHangTinh + tienShip - tongGiamGia;
-  
+
   // Nếu backend đã có tongTien và khác với tính toán, sử dụng backend
   if (order && order.tongTien && Math.abs(order.tongTien - tongTien) > 1000) {
     console.log('⚠️ Phát hiện chênh lệch giữa frontend và backend:', {
@@ -392,7 +393,7 @@ const OrderDetail = () => {
     });
     tongTien = order.tongTien;
   }
-  
+
   // ✅ DEBUG: Log để kiểm tra tính toán
   console.log('🔍 === DEBUG TÍNH TOÁN TỔNG TIỀN ===');
   console.log('📊 order.tongTien:', order?.tongTien);
@@ -413,7 +414,7 @@ const OrderDetail = () => {
   if (error) return (
     <div style={{ padding: 32, textAlign: 'center', color: '#f5222d' }}>
       <div style={{ fontSize: 18 }}>❌ {error}</div>
-      <button 
+      <button
         onClick={() => navigate(-1)}
         style={{
           marginTop: 16,
@@ -438,17 +439,17 @@ const OrderDetail = () => {
 
   return (
     <div style={{ padding: 32, maxWidth: 1100, margin: '0 auto', background: '#fff', borderRadius: 12, boxShadow: '0 2px 8px rgba(25,118,210,0.08)' }}>
-      <button 
-        onClick={() => navigate(-1)} 
-        style={{ 
-          marginBottom: 24, 
-          background: '#e3f0ff', 
-          color: '#1976d2', 
-          border: 'none', 
-          borderRadius: 6, 
-          padding: '8px 24px', 
-          fontWeight: 600, 
-          cursor: 'pointer' 
+      <button
+        onClick={() => navigate(-1)}
+        style={{
+          marginBottom: 24,
+          background: '#e3f0ff',
+          color: '#1976d2',
+          border: 'none',
+          borderRadius: 6,
+          padding: '8px 24px',
+          fontWeight: 600,
+          cursor: 'pointer'
         }}
       >
         ← Quay lại
@@ -469,7 +470,7 @@ const OrderDetail = () => {
       }}>
         <div style={{ fontWeight: 700, color: '#1976d2', marginBottom: 12, fontSize: 16 }}>Trạng thái đơn hàng</div>
         {renderOrderStatusStepper(order.trangThai)}
-        
+
         {/* Nút hủy đơn (chỉ hiển thị ở trạng thái 0) */}
         {order.trangThai === 0 && (
           <div style={{ marginTop: 16 }}>
@@ -493,14 +494,14 @@ const OrderDetail = () => {
             </div>
           </div>
         )}
-        
+
         {/* ✅ THÊM: Thông báo hướng dẫn khi đơn hàng đã được xác nhận */}
         {(order.trangThai === 1 || order.trangThai === 2 || order.trangThai === 3) && (
-          <div style={{ 
-            marginTop: 16, 
-            padding: '12px 16px', 
-            background: '#e8f5e8', 
-            borderRadius: 8, 
+          <div style={{
+            marginTop: 16,
+            padding: '12px 16px',
+            background: '#e8f5e8',
+            borderRadius: 8,
             border: '1px solid #4caf50',
             fontSize: 13,
             color: '#2e7d32'
@@ -550,7 +551,7 @@ const OrderDetail = () => {
       </div>
 
       <h3 style={{ color: '#1976d2', fontWeight: 700, marginBottom: 16 }}>🛍️ Chi tiết sản phẩm</h3>
-      
+
       {/* Danh sách sản phẩm */}
       <div style={{ background: '#f8fafc', borderRadius: 12, padding: 24, marginBottom: 24 }}>
         {orderProducts.length === 0 ? (
@@ -559,11 +560,11 @@ const OrderDetail = () => {
           </div>
         ) : (
           orderProducts.map((sp, idx) => (
-            <div key={sp.id} style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              borderBottom: idx < orderProducts.length - 1 ? '1px solid #e3e8ee' : 'none', 
-              padding: '18px 0' 
+            <div key={sp.id} style={{
+              display: 'flex',
+              alignItems: 'center',
+              borderBottom: idx < orderProducts.length - 1 ? '1px solid #e3e8ee' : 'none',
+              padding: '18px 0'
             }}>
               <div style={{ width: 80, height: 80, marginRight: 24 }}>
                 {sp.anh && sp.anh.trim() !== '' ? (
@@ -580,17 +581,17 @@ const OrderDetail = () => {
                   />
                 ) : null}
                 {/* Fallback khi không có ảnh hoặc ảnh bị lỗi */}
-                <div 
-                  style={{ 
-                    width: 100, 
-                    height: 90, 
-                    background: '#f0f0f0', 
-                    borderRadius: 8, 
-                    display: (sp.anh && sp.anh.trim() !== '') ? 'none' : 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'center', 
-                    fontSize: 12, 
-                    color: '#999' 
+                <div
+                  style={{
+                    width: 100,
+                    height: 90,
+                    background: '#f0f0f0',
+                    borderRadius: 8,
+                    display: (sp.anh && sp.anh.trim() !== '') ? 'none' : 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 12,
+                    color: '#999'
                   }}
                   className="fallback-image"
                 >
@@ -629,16 +630,36 @@ const OrderDetail = () => {
       </div>
 
       {/* Tổng kết đơn hàng */}
-      <div style={{ 
-        background: '#fff', 
-        borderRadius: 12, 
-        padding: 24, 
-        boxShadow: '0 1px 4px rgba(25,118,210,0.04)', 
-        fontSize: 16, 
-        fontWeight: 500, 
-        maxWidth: 400, 
-        marginLeft: 'auto' 
+      <div style={{
+        background: '#fff',
+        borderRadius: 12,
+        padding: 24,
+        boxShadow: '0 1px 4px rgba(25,118,210,0.04)',
+        fontSize: 16,
+        fontWeight: 500,
+        maxWidth: 400,
+        marginLeft: 'auto'
       }}>
+        {/* ✅ DEBUG SECTION - Temporary for troubleshooting */}
+        <div style={{
+          background: '#fffbe6',
+          border: '2px solid #ffe58f',
+          borderRadius: 8,
+          padding: 15,
+          marginBottom: 16,
+          fontSize: 12,
+          color: '#856404',
+          fontFamily: 'monospace'
+        }}>
+          <strong style={{ fontSize: '14px' }}>🔍 DEBUG DỮ LIỆU ĐƠN HÀNG:</strong><br />
+          - ID Đơn: {order.id}<br />
+          - Phí vận chuyển: {order.phiVanChuyen === null ? 'null' : order.phiVanChuyen} (Kiểu: {typeof order.phiVanChuyen})<br />
+          - Tổng tiền: {order.tongTien}<br />
+          - Giảm giá: {order.tongTienGiamGia}<br />
+          - Loại đơn: {order.loaiDonHang}<br />
+          <p style={{ margin: '8px 0 0 0', color: '#d46b08' }}>* Nếu Phí vận chuyển là 0 hoặc null, dữ liệu chưa được lưu đúng vào DB.</p>
+        </div>
+
         <h3 style={{ color: '#1976d2', fontWeight: 700, marginBottom: 16 }}>💰 Tổng kết đơn hàng</h3>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
           <span>Tiền hàng:</span>
@@ -657,10 +678,10 @@ const OrderDetail = () => {
           <span>Tổng thanh toán:</span>
           <span>{tongTien.toLocaleString()}đ</span>
         </div>
-        
+
         {/* ✅ DEBUG: Hiển thị tính toán chi tiết */}
-        
-        
+
+
         {/* Thông tin bổ sung */}
         <div style={{ marginTop: 16, padding: 12, background: '#f8fafc', borderRadius: 8, fontSize: 14 }}>
           <div style={{ marginBottom: 4 }}>
@@ -672,7 +693,7 @@ const OrderDetail = () => {
             </div>
           )}
           <div>
-            <strong>Trạng thái:</strong> 
+            <strong>Trạng thái:</strong>
             <span style={{
               background: TRANG_THAI.find(t => t.value === order.trangThai)?.color || '#999',
               color: '#fff',
@@ -684,7 +705,7 @@ const OrderDetail = () => {
               {TRANG_THAI.find(t => t.value === order.trangThai)?.label || 'Không xác định'}
             </span>
           </div>
-          
+
           {/* ✅ THÊM: Hiển thị lý do cho trạng thái 5 và 7 */}
           {(order.trangThai === 5 || order.trangThai === 7) && order.ghiChu && (
             <div style={{ marginTop: 8 }}>

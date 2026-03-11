@@ -685,7 +685,7 @@ const OrderDetailPage = () => {
         soDienThoaiGiaoHang: result.soDienThoaiGiaoHang,
         emailGiaoHang: result.emailGiaoHang,
         phiVanChuyen: result.phiVanChuyen,
-        tongTien: result.tongTienMoi
+        tongTien: result.tongTien
       }));
       
       // Hiển thị thông báo thành công với thông tin mới
@@ -697,7 +697,7 @@ const OrderDetailPage = () => {
             <p>Đã cập nhật địa chỉ giao hàng thành công!</p>
             <div style="margin-top: 16px; padding: 12px; background: #f0f8ff; border-radius: 8px;">
               <p><strong>Phí ship mới:</strong> ${result.phiVanChuyen?.toLocaleString()}đ</p>
-              <p><strong>Tổng tiền mới:</strong> ${result.tongTienMoi?.toLocaleString()}đ</p>
+              <p><strong>Tổng tiền mới:</strong> ${result.tongTien?.toLocaleString()}đ</p>
             </div>
           </div>
         `,
@@ -1678,8 +1678,8 @@ const OrderDetailPage = () => {
     return sum + (finalPrice * sp.soLuong);
   }, 0);
 
-  const tongGiamGia = orderInfo && orderInfo.tongTienGiamGia ? orderInfo.tongTienGiamGia : 0;
-  const tienShip = orderInfo && orderInfo.phiVanChuyen ? orderInfo.phiVanChuyen : 0;
+  const tongGiamGia = orderInfo && orderInfo.tongTienGiamGia ? Number(orderInfo.tongTienGiamGia) : 0;
+  const tienShip = orderInfo && (orderInfo.phiVanChuyen !== null && orderInfo.phiVanChuyen !== undefined) ? Number(orderInfo.phiVanChuyen) : 0;
   
   // ✅ DEBUG: Log giá trị tienShip
   console.log('🔍 === DEBUG TIENSHIP ===');

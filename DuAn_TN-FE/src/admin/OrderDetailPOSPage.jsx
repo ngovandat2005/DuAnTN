@@ -212,6 +212,11 @@ const OrderDetailPOSPage = () => {
               <div style={{ fontWeight: 'bold', marginBottom: 4, color: '#388e3c', fontSize: 18 }}>
                 Tiền giảm giá: -{tongGiamGia.toLocaleString()}đ
               </div>
+              {order?.phiVanChuyen > 0 && (
+                <div style={{ fontWeight: 'bold', marginBottom: 4, color: '#f39c12', fontSize: 18 }}>
+                  Phí vận chuyển: +{order.phiVanChuyen.toLocaleString()}đ
+                </div>
+              )}
               <div style={{ fontWeight: 'bold', marginBottom: 4, color: '#1976d2', fontSize: 20 }}>
                 Tổng tiền: {tongTien.toLocaleString()}đ
               </div>
