@@ -1548,7 +1548,7 @@ const Payment = () => {
       // ✅ Lấy ID khách hàng từ user đang đăng nhập (đã kiểm tra ở trên)
       const customerId = getCustomerId();
 
-      // BƯỚC 1: Tạo đơn hàng cơ bản với API create-online
+      // BƯỚC 1: Tạo đơn hàng cơ bản với API tạo đơn hàng chung
       const orderData = {
         idkhachHang: customerId, // ID khách hàng từ user đang đăng nhập
         idnhanVien: null,
@@ -1563,13 +1563,12 @@ const Payment = () => {
         emailGiaoHang: customerEmail,
         // ✅ SỬA: Chỉ sử dụng customerAddress (đã bao gồm địa chỉ chi tiết)
         diaChiGiaoHang: customerAddress,
-        loaiDonHang: 'online', // Sử dụng chữ thường để phù hợp với Backend
+        // Đánh dấu đây là đơn ONLINE để admin lọc đúng
+        loaiDonHang: 'ONLINE',
         trangThai: 0 // COD: Chờ xác nhận (cần xác nhận thủ công)
       };
 
-
-
-      const orderRes = await fetch(config.getApiUrl('api/donhang/create-online'), {
+      const orderRes = await fetch(config.getApiUrl('api/donhang/create'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(orderData)
