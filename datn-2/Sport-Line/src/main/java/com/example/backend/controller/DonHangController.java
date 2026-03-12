@@ -33,57 +33,57 @@
         }
         @GetMapping("/donhang/getAllHoanThanh")
         public ResponseEntity<List<DonHangDTO>> hoanThanh() {
-            // Ví dụ: chỉ lấy trạng thái=1, loaiDonHang="online"
+            // Lấy đơn đã hoàn thành tại quầy
             return ResponseEntity.ok(donHangService.filterByTrangThaiAndLoai(1, "Bán hàng tại quầy"));
         }
 
 
         @GetMapping("/donhang/chuahoanthanh")
         public ResponseEntity<List<DonHangDTO>> chuahoanthanh() {
-            // Ví dụ: chỉ lấy trạng thái=1, loaiDonHang="online"
+            // Lấy đơn chưa hoàn thành tại quầy
             return ResponseEntity.ok(donHangService.filterByTrangThaiAndLoai(0, "Bán hàng tại quầy"));
         }
         @GetMapping("/donhang/don-online")
         public ResponseEntity<List<DonHangDTO>> donOnline() {
-            // Ví dụ: chỉ lấy trạng thái=1, loaiDonHang="online"
-            return ResponseEntity.ok(donHangService.filterByTrangThaiAndLoai(null, "Bán hàng tại quầy"));
+            // Lấy TẤT CẢ đơn hàng online (mọi trạng thái)
+            return ResponseEntity.ok(donHangService.filterByTrangThaiAndLoai(null, "ONLINE"));
         }
 
 
         @GetMapping("/donhang/choxacnhan")
         public ResponseEntity<List<DonHangDTO>> choXacNhan() {
-            // Ví dụ: chỉ lấy trạng thái=1, loaiDonHang="online"
-            return ResponseEntity.ok(donHangService.filterByTrangThaiAndLoai(0, "online"));
+            // Đơn online chờ xác nhận
+            return ResponseEntity.ok(donHangService.filterByTrangThaiAndLoai(0, "ONLINE"));
         }
         @GetMapping("/donhang/daxacnhan")
         public ResponseEntity<List<DonHangDTO>> daXacNhan() {
-            // Ví dụ: chỉ lấy trạng thái=1, loaiDonHang="online"
-            return ResponseEntity.ok(donHangService.filterByTrangThaiAndLoai(1, "online"));
+            // Đơn online đã xác nhận
+            return ResponseEntity.ok(donHangService.filterByTrangThaiAndLoai(1, "ONLINE"));
         }
         @GetMapping("/donhang/dangcbi")
         public ResponseEntity<List<DonHangDTO>> dangCB() {
-            // Ví dụ: chỉ lấy trạng thái=1, loaiDonHang="online"
-            return ResponseEntity.ok(donHangService.filterByTrangThaiAndLoai(2, "online"));
+            // Đơn online đang chuẩn bị
+            return ResponseEntity.ok(donHangService.filterByTrangThaiAndLoai(2, "ONLINE"));
         }
         @GetMapping("/donhang/danggiao")
         public ResponseEntity<List<DonHangDTO>> dangGiao() {
-            // Ví dụ: chỉ lấy trạng thái=1, loaiDonHang="online"
-            return ResponseEntity.ok(donHangService.filterByTrangThaiAndLoai(3, "online"));
+            // Đơn online đang giao
+            return ResponseEntity.ok(donHangService.filterByTrangThaiAndLoai(3, "ONLINE"));
         }
         @GetMapping("/donhang/dagiao")
         public ResponseEntity<List<DonHangDTO>> daGiao() {
-            // Ví dụ: chỉ lấy trạng thái=1, loaiDonHang="online"
-            return ResponseEntity.ok(donHangService.filterByTrangThaiAndLoai(4, "online"));
+            // Đơn online đã giao
+            return ResponseEntity.ok(donHangService.filterByTrangThaiAndLoai(4, "ONLINE"));
         }
         @GetMapping("/donhang/dahuy")
         public ResponseEntity<List<DonHangDTO>> daHuy() {
-            // Ví dụ: chỉ lấy trạng thái=1, loaiDonHang="online"
-            return ResponseEntity.ok(donHangService.filterByTrangThaiAndLoai(5, "online"));
+            // Đơn online đã hủy
+            return ResponseEntity.ok(donHangService.filterByTrangThaiAndLoai(5, "ONLINE"));
         }
         @GetMapping("/donhang/trahanghoantien")
         public ResponseEntity<List<DonHangDTO>> THHT() {
-            // Ví dụ: chỉ lấy trạng thái=1, loaiDonHang="online"
-            return ResponseEntity.ok(donHangService.filterByTrangThaiAndLoai(6, "online"));
+            // Đơn online trả hàng/hoàn tiền
+            return ResponseEntity.ok(donHangService.filterByTrangThaiAndLoai(6, "ONLINE"));
         }
 
 
