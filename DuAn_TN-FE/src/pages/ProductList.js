@@ -284,7 +284,7 @@ function ProductList() {
                 tooltip={{ formatter: value => value.toLocaleString() + 'đ' }}
               />
               <div style={{ fontSize: 13, textAlign: 'center' }}>
-                Giá từ: <b>{priceRange[0] ? priceRange[0].toLocaleString() : 0}đ</b> đến <b>{priceRange[1] ? priceRange[1].toLocaleString() : 'Tối đa'}đ</b>
+                Giá từ: <b>{priceRange[0] ? `${priceRange[0].toLocaleString()}đ` : '0đ'}</b> đến <b>{priceRange[1] ? `${priceRange[1].toLocaleString()}đ` : 'Tối đa'}</b>
               </div>
             </div>
             <Input

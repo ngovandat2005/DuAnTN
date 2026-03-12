@@ -99,6 +99,12 @@ public class GHNController {
      */
     @PostMapping("/calculate-fee")
     public ResponseEntity<?> calculateFee(@RequestBody FeeRequest feeRequest) {
+        if (feeRequest == null || feeRequest.getToDistrict() == 0 || feeRequest.getToWardCode() == null) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("total_fee", 30000); // Trả về phí mặc định thay vì lỗi
+            return ResponseEntity.ok(error);
+        }
+
         int fee = ghnClientService.tinhPhiVanChuyen(
                 feeRequest.getToDistrict(),
                 feeRequest.getToWardCode(),
