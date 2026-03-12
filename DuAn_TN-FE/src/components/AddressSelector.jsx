@@ -194,6 +194,7 @@ const AddressSelector = ({
         style={{ flex: 1, minWidth: 150 }}
         value={selectedProvince}
         onChange={handleProvinceChange}
+        getPopupContainer={trigger => trigger.parentNode}
         loading={loading}
         showSearch
         filterOption={(input, option) =>
@@ -213,6 +214,7 @@ const AddressSelector = ({
         style={{ flex: 1, minWidth: 150 }}
         value={selectedDistrict}
         onChange={handleDistrictChange}
+        getPopupContainer={trigger => trigger.parentNode}
         loading={districtLoading}
         disabled={!selectedProvince}
         showSearch
@@ -234,6 +236,7 @@ const AddressSelector = ({
           style={{ flex: 1, minWidth: 150 }}
           value={selectedWard}
           onChange={handleWardChange}
+          getPopupContainer={trigger => trigger.parentNode}
           loading={wardLoading}
           disabled={!selectedDistrict}
           showSearch
