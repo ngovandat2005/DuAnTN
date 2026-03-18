@@ -7,18 +7,18 @@ import lombok.Setter;
 
 @Getter
 @Setter
-@AllArgsConstructor
 @NoArgsConstructor
+@AllArgsConstructor
 public class SPCTDTO {
+
     private Integer id;
     private String images;
     private String tenSanPham;
+    private String ghiChu;
     private Integer soLuong;
     private Double giaBan;
-    private Double giaBanSauGiam;
+    private Double giaBanGiamGia;
     private String kichThuoc;
     private String mauSac;
     private Integer idKhuyenMai;
-
-
 }
