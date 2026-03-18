@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
-import { Table, Button, Modal, Form, Input, DatePicker, Select, Space, message, Popconfirm } from 'antd';
+import { Table, Button, Modal, Form, Input, DatePicker, Select, Space, message, Popconfirm, Row, Col } from 'antd';
 import { UserOutlined, MailOutlined, PhoneOutlined, HomeOutlined, KeyOutlined, CalendarOutlined, QuestionCircleOutlined } from '@ant-design/icons';
 import moment from 'moment';
+import config from '../config/config';
+import { parseGHNResponse } from '../utils/ghnUtils';
 import '../styles/AdminPanel.css'; // Import the CSS file
 
 const { Option } = Select;
@@ -15,12 +17,112 @@ export default function KhachHangPage() {
   // Dữ liệu giả định cho khách hàng
   const [khachHangs, setKhachHangs] = useState([]);
 
+  // GHN Address states
+  const [provinces, setProvinces] = useState([]);
+  const [districts, setDistricts] = useState([]);
+  const [wards, setWards] = useState([]);
+  const [selectedProvince, setSelectedProvince] = useState(null);
+  const [selectedDistrict, setSelectedDistrict] = useState(null);
+  const [selectedWard, setSelectedWard] = useState(null);
+  const [addressLoading, setAddressLoading] = useState(false);
+  const [districtLoading, setDistrictLoading] = useState(false);
+  const [wardLoading, setWardLoading] = useState(false);
+
   useEffect(() => {
     fetch('http://localhost:8080/api/khachhang')
       .then(response => response.json())
       .then(data => setKhachHangs(data))
       .catch(error => console.error('Lỗi khi gọi API kích thước:', error));
   }, []);
+
+  // Load provinces
+  useEffect(() => {
+    const fetchProvinces = async () => {
+      setAddressLoading(true);
+      try {
+        const response = await fetch(config.getApiUrl("api/ghn/provinces"));
+        if (response.ok) {
+          const responseData = await response.json();
+          const data = parseGHNResponse(responseData);
+          if (data) setProvinces(data);
+        }
+      } catch (error) {
+        console.error("Lỗi fetch tỉnh/thành:", error);
+      } finally {
+        setAddressLoading(false);
+      }
+    };
+    fetchProvinces();
+  }, []);
+
+  // Load districts
+  useEffect(() => {
+    if (selectedProvince) {
+      const fetchDistricts = async () => {
+        setDistrictLoading(true);
+        setDistricts([]);
+        setWards([]);
+        try {
+          const response = await fetch(config.getApiUrl(`api/ghn/districts/${selectedProvince}`));
+          if (response.ok) {
+            const responseData = await response.json();
+            const data = parseGHNResponse(responseData);
+            if (data) setDistricts(data);
+          }
+        } catch (error) {
+          console.error("Lỗi fetch quận/huyện:", error);
+        } finally {
+          setDistrictLoading(false);
+        }
+      };
+      fetchDistricts();
+    } else {
+      setDistricts([]);
+      setWards([]);
+    }
+  }, [selectedProvince]);
+
+  // Load wards
+  useEffect(() => {
+    if (selectedDistrict) {
+      const fetchWards = async () => {
+        setWardLoading(true);
+        setWards([]);
+        try {
+          const response = await fetch(config.getApiUrl(`api/ghn/wards/${selectedDistrict}`));
+          if (response.ok) {
+            const responseData = await response.json();
+            const data = parseGHNResponse(responseData);
+            if (data) setWards(data);
+          }
+        } catch (error) {
+          console.error("Lỗi fetch phường/xã:", error);
+        } finally {
+          setWardLoading(false);
+        }
+      };
+      fetchWards();
+    } else {
+      setWards([]);
+    }
+  }, [selectedDistrict]);
+
+  const handleProvinceChange = (provinceId) => {
+    setSelectedProvince(provinceId);
+    setSelectedDistrict(null);
+    setSelectedWard(null);
+    form.setFieldsValue({ districtId: null, wardCode: null });
+  };
+
+  const handleDistrictChange = (districtId) => {
+    setSelectedDistrict(districtId);
+    setSelectedWard(null);
+    form.setFieldsValue({ wardCode: null });
+  };
+
+  const handleWardChange = (wardId) => {
+    setSelectedWard(wardId);
+  };
 
   const handleDelete = (id) => {
     Swal.fire({
@@ -98,11 +200,17 @@ export default function KhachHangPage() {
     setIsModalVisible(false);
     setEditingCustomer(null);
     form.resetFields();
+    setSelectedProvince(null);
+    setSelectedDistrict(null);
+    setSelectedWard(null);
   };
 
   const handleAdd = () => {
     setEditingCustomer(null);
     form.resetFields();
+    setSelectedProvince(null);
+    setSelectedDistrict(null);
+    setSelectedWard(null);
     showModal();
   };
 
@@ -110,14 +218,29 @@ export default function KhachHangPage() {
     setEditingCustomer(customer);
     form.setFieldsValue({
       ...customer,
+      addressDetail: customer.diaChi,
+      provinceId: null,
+      districtId: null,
+      wardCode: null,
       ngaySinh: customer.ngaySinh ? moment(customer.ngaySinh) : null,
       gioiTinh: customer.gioiTinh === true || customer.gioiTinh === 1 ? 'Nam' : 'Nữ',
       trangThai: customer.trangThai ? 1 : 0,
     });
+    setSelectedProvince(null);
+    setSelectedDistrict(null);
+    setSelectedWard(null);
     showModal();
   };
 
   const onFinish = (values) => {
+    let finalAddress = values.addressDetail || "";
+    if (values.provinceId && values.districtId && values.wardCode) {
+      const provName = provinces.find(p => p.ProvinceID === values.provinceId)?.ProvinceName || '';
+      const distName = districts.find(d => d.DistrictID === values.districtId)?.DistrictName || '';
+      const wardName = wards.find(w => w.WardCode === values.wardCode)?.WardName || '';
+      finalAddress = `${values.addressDetail ? values.addressDetail + ', ' : ''}${wardName}, ${distName}, ${provName}`;
+    }
+
     // Map giá trị đúng với backend
     const dataSend = {
       ...values,
@@ -126,7 +249,7 @@ export default function KhachHangPage() {
       soDienThoai: values.soDienThoai,
       ngaySinh: values.ngaySinh ? values.ngaySinh.toISOString() : null,
       gioiTinh: values.gioiTinh === 'Nam' ? true : false,
-      diaChi: values.diaChi,
+      diaChi: finalAddress,
       trangThai: values.trangThai === 1 ? true : false,
       maThongBao: null,
       thoiGianThongBao: null,
@@ -279,12 +402,58 @@ export default function KhachHangPage() {
               <Option value="Nữ">Nữ</Option>
             </Select>
           </Form.Item>
+          <Row gutter={16}>
+            <Col span={8}>
+              <Form.Item name="provinceId" label="Tỉnh/Thành phố">
+                <Select
+                  placeholder="Thành phố"
+                  onChange={handleProvinceChange}
+                  loading={addressLoading}
+                  showSearch
+                  filterOption={(input, option) => option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0}
+                  allowClear
+                >
+                  {provinces.map(p => <Option key={p.ProvinceID} value={p.ProvinceID}>{p.ProvinceName}</Option>)}
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="districtId" label="Quận/Huyện">
+                <Select
+                  placeholder="Quận/Huyện"
+                  onChange={handleDistrictChange}
+                  loading={districtLoading}
+                  disabled={!selectedProvince}
+                  showSearch
+                  filterOption={(input, option) => option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0}
+                  allowClear
+                >
+                  {districts.map(d => <Option key={d.DistrictID} value={d.DistrictID}>{d.DistrictName}</Option>)}
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="wardCode" label="Phường/Xã">
+                <Select
+                  placeholder="Phường/Xã"
+                  onChange={handleWardChange}
+                  loading={wardLoading}
+                  disabled={!selectedDistrict}
+                  showSearch
+                  filterOption={(input, option) => option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0}
+                  allowClear
+                >
+                  {wards.map(w => <Option key={w.WardCode} value={w.WardCode}>{w.WardName}</Option>)}
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
           <Form.Item
-            name="diaChi"
-            label="Địa Chỉ"
-            rules={[{ required: true, message: 'Vui lòng nhập Địa Chỉ!' }]}
+            name="addressDetail"
+            label={editingCustomer ? "Địa Chỉ Cũ / Địa Chỉ Cụ Thể" : "Địa Chỉ Cụ Thể"}
+            rules={[{ required: true, message: 'Vui lòng nhập Địa Chỉ cụ thể!' }]}
           >
-            <Input prefix={<HomeOutlined />} placeholder="Địa Chỉ" />
+            <Input prefix={<HomeOutlined />} placeholder="Ví dụ: Số nhà, tên đường..." />
           </Form.Item>
           <Form.Item>
             <Button type="primary" htmlType="submit">

@@ -2,10 +2,10 @@
 export const bankConfig = {
   // Thông tin tài khoản ngân hàng
   accountInfo: {
-    bankName: 'MB - Ngân hàng TMCP Quân đội',
-    accountNumber: '08913122005',
-    accountName: 'BUI DINH ANH TAI',
-    bankCode: 'MB', // Mã ngân hàng theo chuẩn VietQR
+    bankName: 'MBV - Ngân hàng Việt Nam Hiện Đại',
+    accountNumber: '66662135908',
+    accountName: 'NGO ANH DUNG',
+    bankCode: 'MBV', // Mã ngân hàng theo chuẩn VietQR
     branchCode: '001' // Mã chi nhánh
   },
 

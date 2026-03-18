@@ -30,6 +30,10 @@ public class GHNClientService {
     @Value("${ghn.baseUrl}")
     private String ghnBaseUrl;
 
+    @Value("${ghn.fromDistrictId}")
+    private Integer fromDistrictId;
+
+    @SuppressWarnings("unchecked")
     public int tinhPhiVanChuyen(Integer toDistrictId, String toWardCode, int weightGram) {
         String url = ghnBaseUrl + "/v2/shipping-order/fee";
 
@@ -38,39 +42,47 @@ public class GHNClientService {
         headers.set("Token", ghnToken);
         headers.set("ShopId", String.valueOf(ghnShopId));
 
-        Map<String, Object> body = Map.of(
-                "from_district_id", 1442,
-                "to_district_id", toDistrictId,
-                "to_ward_code", toWardCode,
-                "service_type_id", 2,
-                "height", 10,
-                "length", 20,
-                "width", 10,
-                "weight", weightGram,
-                "insurance_value", 0
-        );
+        Map<String, Object> body = new java.util.HashMap<>();
+        body.put("from_district_id", fromDistrictId);
+        body.put("to_district_id", toDistrictId);
+        body.put("to_ward_code", toWardCode);
+        body.put("service_id", 53320); // Thường ổn định hơn service_type_id
+        body.put("service_type_id", 2);
+        body.put("height", 10);
+        body.put("length", 20);
+        body.put("width", 10);
+        body.put("weight", weightGram);
+        body.put("insurance_value", 0);
 
         HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
         System.out.println("GHN Token = " + ghnToken);
         System.out.println("GHN ShopId = " + ghnShopId);
 
         try {
-            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.POST, request, Map.class);
+            ResponseEntity<Map<String, Object>> response = restTemplate.exchange(url, HttpMethod.POST, request, (Class<Map<String, Object>>) (Class<?>) Map.class);
             Map<String, Object> responseBody = response.getBody();
 
-            if (responseBody == null || !(responseBody.get("data") instanceof Map))
-                throw new RuntimeException("GHN trả về dữ liệu không hợp lệ!");
+            if (responseBody == null || !(responseBody.get("data") instanceof Map)) {
+                System.err.println("GHN trả về dữ liệu không hợp lệ. Dùng phí mặc định 30000.");
+                return 30000;
+            }
 
             Map<String, Object> data = (Map<String, Object>) responseBody.get("data");
-            return (Integer) data.get("total");
+            Object total = data.get("total");
+            if (total instanceof Number) {
+                return ((Number) total).intValue();
+            }
+            return 30000;
 
         } catch (HttpClientErrorException ex) {
             System.err.println("GHN API lỗi: " + ex.getStatusCode());
             System.err.println("Body GHN: " + ex.getResponseBodyAsString());
-            throw new RuntimeException("GHN từ chối request! Kiểm tra lại token/ShopId hoặc headers.");
+            System.err.println("Dùng phí mặc định 30000 do lỗi tuyến đường GHN.");
+            return 30000;
+        } catch (Exception e) {
+            System.err.println("Lỗi không xác định khi gọi GHN: " + e.getMessage());
+            return 30000;
         }
-
-
     }
 
     @PostConstruct

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Button, InputNumber, message } from 'antd';
+import { Button, InputNumber, message, Checkbox } from 'antd';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { ShoppingCartOutlined, DeleteOutlined } from '@ant-design/icons';
@@ -9,8 +9,8 @@ import './Cart.css';
 
 function Cart() {
   const [cart, setCart] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [selectAll, setSelectAll] = useState(true);
+  // ✅ THÊM: State quản lý các item được chọn
+  const [selectedItemIds, setSelectedItemIds] = useState([]);
 
   // ✅ SỬ DỤNG UTILITY FUNCTION ĐỂ LẤY ID KHÁCH HÀNG
   const customerId = getCustomerId();
@@ -30,7 +30,6 @@ function Cart() {
   useEffect(() => {
     const fetchCart = async () => {
       try {
-        setLoading(true);
         console.log('🔄 Đang fetch giỏ hàng cho user:', customerId);
         console.log('📍 API:', config.getApiUrl(`api/gio-hang-chi-tiet/${customerId}`));
         
@@ -94,8 +93,6 @@ function Cart() {
         console.error('❌ Data:', error.response?.data);
         
         message.error(`Không lấy được giỏ hàng: ${error.response?.data?.message || error.message}`);
-      } finally {
-        setLoading(false);
       }
     };
     
@@ -144,6 +141,7 @@ function Cart() {
         
         // ✅ SỬA: Cập nhật state local trước
         setCart([]);
+        setSelectedItemIds([]); // Reset selected items
         
         // ✅ SỬA: Reload trang ngay lập tức
         window.location.reload();
@@ -184,6 +182,7 @@ function Cart() {
           const refreshResponse = await axios.get(config.getApiUrl(`api/gio-hang-chi-tiet/${customerId}`));
           if (refreshResponse.status === 200) {
             setCart(refreshResponse.data);
+            setSelectedItemIds(prev => prev.filter(id => id !== idGioHangChiTiet)); // Remove from selected if exists
             console.log('✅ Đã refresh giỏ hàng từ backend, số lượng:', refreshResponse.data.length);
           }
         } catch (refreshError) {
@@ -251,6 +250,10 @@ function Cart() {
         giaBan = 0;
         source = 'fallback_0';
       }
+    // Chỉ tính tổng các phần tử đã được chọn
+    if (!selectedItemIds.includes(item.id)) {
+      return sum;
+    }
     
     const itemTotal = giaBan * (item.soLuong || 1);
     console.log(`💰 Item ${item.id}: giá=${giaBan}, số lượng=${item.soLuong || 1}, thành tiền=${itemTotal}, nguồn=${source}`);
@@ -275,6 +278,22 @@ function Cart() {
   
   // ✅ CHỈ HIỂN THỊ TỔNG TIỀN SẢN PHẨM
   // const finalTotalWithShipping = (total || 0) + (SHIPPING_FEE || 0);
+  // Logic Checkbox thay đổi
+  const handleSelectAll = (e) => {
+    if (e.target.checked) {
+      setSelectedItemIds(cart.map(item => item.id));
+    } else {
+      setSelectedItemIds([]);
+    }
+  };
+
+  const handleSelectItem = (id, checked) => {
+    if (checked) {
+      setSelectedItemIds(prev => [...prev, id]);
+    } else {
+      setSelectedItemIds(prev => prev.filter(itemId => itemId !== id));
+    }
+  };
   
   return (
     <div className="gx-cart-root gx-cart-full-bg">
@@ -289,6 +308,13 @@ function Cart() {
         <table className="gx-cart-table">
           <thead>
             <tr>
+              <th style={{ width: 50, textAlign: 'center' }}>
+                <Checkbox 
+                  checked={cart.length > 0 && selectedItemIds.length === cart.length}
+                  indeterminate={selectedItemIds.length > 0 && selectedItemIds.length < cart.length}
+                  onChange={handleSelectAll}
+                />
+              </th>
               <th>Sản phẩm</th>
               <th>Thuộc tính</th>
               <th>Giá</th>
@@ -300,12 +326,18 @@ function Cart() {
           <tbody>
             {cart.length === 0 ? (
               <tr>
-                <td colSpan={6} style={{ textAlign: 'center', padding: 32 }}>
+                <td colSpan={7} style={{ textAlign: 'center', padding: 32 }}>
                   Không có sản phẩm trong giỏ hàng
                 </td>
               </tr>
             ) : cart.map(item => (
               <tr key={item.id} className="gx-cart-row">
+                <td style={{ textAlign: 'center' }}>
+                  <Checkbox 
+                    checked={selectedItemIds.includes(item.id)}
+                    onChange={(e) => handleSelectItem(item.id, e.target.checked)}
+                  />
+                </td>
                 <td className="gx-cart-product">
                   <img
                     src={
@@ -601,15 +633,16 @@ function Cart() {
 
             <button
               className="checkout-btn"
-              onClick={() =>
+              onClick={() => {
+                const selectedItems = cart.filter(item => selectedItemIds.includes(item.id));
                 navigate('/payment', {
                   state: { 
-                    cart, 
+                    cart: selectedItems, 
                     total: total || 0
                   },
-                })
-              }
-              disabled={cart.length === 0}
+                });
+              }}
+              disabled={selectedItemIds.length === 0}
             >
               <i className="bi bi-credit-card" style={{ marginRight: 8 }}></i>Thanh toán
             </button>

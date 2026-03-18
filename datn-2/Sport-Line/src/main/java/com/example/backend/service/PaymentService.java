@@ -22,56 +22,63 @@ public class PaymentService {
     private JavaMailSender mailSender;
 
     public String createPaymentUrl(int amount, String ipAddress) throws Exception {
+        if (ipAddress == null || ipAddress.equals("0:0:0:0:0:0:0:1") || ipAddress.equals("localhost")) {
+            ipAddress = "127.0.0.1";
+        }
+        System.out.println("DEBUG VNPAY - Client IP: " + ipAddress);
+
         Map<String, String> vnpParams = vnpayConfig.createVNPayParams(amount, ipAddress);
 
         vnpParams.remove("vnp_SecureHashType");
         vnpParams.remove("vnp_SecureHash");
 
+        // Sort theo thứ tự alphabet
         List<String> fieldNames = new ArrayList<>(vnpParams.keySet());
         Collections.sort(fieldNames);
 
         StringBuilder hashData = new StringBuilder();
         StringBuilder query = new StringBuilder();
-
-        Iterator<String> itr = fieldNames.iterator();
-        while (itr.hasNext()) {
-            String fieldName = (String) itr.next();
-            String fieldValue = (String) vnpParams.get(fieldName);
-            if ((fieldValue != null) && (fieldValue.length() > 0)) {
-                //Build hash data
-                hashData.append(fieldName);
-                hashData.append('=');
-                hashData.append(encodeValue(fieldValue));
-                //Build query
-                query.append(encodeValue(fieldName));
-                query.append('=');
-                query.append(encodeValue(fieldValue));
-                if (itr.hasNext()) {
-                    query.append('&');
-                    hashData.append('&');
+        
+        for (int i = 0; i < fieldNames.size(); i++) {
+            String fieldName = fieldNames.get(i);
+            String fieldValue = vnpParams.get(fieldName);
+            
+            if (fieldValue != null && fieldValue.length() > 0) {
+                String encodedKey = encodeValue(fieldName);
+                String encodedValue = encodeValue(fieldValue);
+                
+                // Build hash data (VNPAY 2.1.0 yêu cầu các giá trị đã encode)
+                hashData.append(fieldName).append("=").append(encodedValue);
+                
+                // Build query string
+                query.append(encodedKey).append("=").append(encodedValue);
+                
+                if (i < fieldNames.size() - 1) {
+                    hashData.append("&");
+                    query.append("&");
                 }
             }
         }
 
+        String hashDataStr = hashData.toString();
+        String queryStr = query.toString();
+
         String secretKey = vnpayConfig.getSecretKey().trim();
-        String secureHash = VNPayUtil.hmacSHA512(secretKey, hashData.toString());
+        String secureHash = VNPayUtil.hmacSHA512(secretKey, hashDataStr);
 
-        System.out.println("=== VNPAY DEBUG INFO ===");
-        System.out.println("Secret Key: " + secretKey);
-        System.out.println("Hash Data String: " + hashData.toString());
-        System.out.println("Generated Secure Hash: " + secureHash);
-        System.out.println("Query String: " + query.toString());
-        System.out.println("========================");
+        String finalUrl = vnpayConfig.getPayUrl() + "?" + queryStr + "&vnp_SecureHash=" + secureHash;
 
-        return vnpayConfig.getPayUrl() + "?" + query.toString() + "&vnp_SecureHash=" + secureHash;
+        System.out.println("DEBUG VNPAY - Hash Data: [" + hashDataStr + "]");
+        System.out.println("DEBUG VNPAY - Hash Output: [" + secureHash + "]");
+        System.out.println("DEBUG VNPAY - Full URL: " + finalUrl);
+
+        return finalUrl;
     }
 
     private String encodeValue(String value) {
         try {
-            return URLEncoder.encode(value, StandardCharsets.US_ASCII.toString())
-                    .replace("+", "%20")
-                    .replace("*", "%2A")
-                    .replace("%7E", "~");
+            // VNPAY standard Java sample uses URLEncoder without replacing + with %20
+            return URLEncoder.encode(value, StandardCharsets.UTF_8.toString());
         } catch (Exception e) {
             return value;
         }

@@ -178,6 +178,7 @@ const DonHangPage = () => {
       const mappedData = (Array.isArray(data) ? data : []).map(item => ({
         id: item.id,
         maDon: item.id,
+        idnhanVien: item.idnhanVien, // Thêm idnhanVien
         tenNguoiNhan: item.tenNguoiNhan,
         ngayTao: item.ngayTao,
         soDienThoaiGiaoHang: item.soDienThoaiGiaoHang,
@@ -260,6 +261,7 @@ const DonHangPage = () => {
       data = (Array.isArray(data) ? data : []).map(item => ({
         id: item.id,
         maDon: `HD${item.id}`, // ✅ THÊM: Thêm chữ "HD" sau mã đơn hàng
+        idnhanVien: item.idnhanVien, // Thêm idnhanVien
         tenNguoiNhan: item.tenNguoiNhan, // giữ nguyên tên trường
         ngayTao: item.ngayTao,
         soDienThoaiGiaoHang: item.soDienThoaiGiaoHang, // giữ nguyên tên trường
@@ -268,6 +270,28 @@ const DonHangPage = () => {
         trangThai: item.trangThai ?? status,
         ghiChu: item.ghiChu, // Lấy trực tiếp từ DonHangDTO
       }));
+      
+      // ✅ THÊM: Nếu dữ liệu thiếu thông tin nhân viên, fetch bổ sung
+      if (Array.isArray(data) && data.length > 0) {
+        const enhancedData = await Promise.all(data.map(async (order) => {
+          // Nếu thiếu thông tin nhân viên, fetch bổ sung
+          if (!order.tenNhanVien && order.idnhanVien) {
+            try {
+              const nhanVienRes = await fetch(`http://localhost:8080/api/nhanvien/${order.idnhanVien}`);
+              if (nhanVienRes.ok) {
+                const nhanVien = await nhanVienRes.json();
+                order.tenNhanVien = nhanVien.tenNhanVien || nhanVien.ten || 'Không xác định';
+              }
+            } catch (err) {
+              console.warn(`Không thể fetch thông tin nhân viên cho order ${order.id}:`, err);
+              order.tenNhanVien = 'Không xác định';
+            }
+          }
+          return order;
+        }));
+        
+        data = enhancedData;
+      }
       
       // ✅ SỬA: Sắp xếp theo mã đơn hàng từ cao xuống thấp (thay vì theo ngày)
       data.sort((a, b) => {
@@ -1000,6 +1024,7 @@ const DonHangPage = () => {
           <tr style={{ background: '#e3f0ff', color: '#1976d2', fontWeight: 700 }}>
             <th style={{ padding: 12 }}>STT</th>
             <th style={{ padding: 12 }}>Mã đơn hàng</th>
+            <th style={{ padding: 12 }}>Nhân viên</th>
             <th style={{ padding: 12 }}>Tên khách hàng</th>
             <th style={{ padding: 12 }}>Ngày tạo</th>
             <th style={{ padding: 12 }}>Số khách</th>
@@ -1016,7 +1041,7 @@ const DonHangPage = () => {
         <tbody>
           {orders.length === 0 ? (
             <tr>
-              <td colSpan={(filterStatus === 5 || filterStatus === 7) ? 9 : 8} style={{ textAlign: 'center', color: '#888', padding: 32 }}>
+              <td colSpan={(filterStatus === 5 || filterStatus === 7) ? 10 : 9} style={{ textAlign: 'center', color: '#888', padding: 32 }}>
                 Không có đơn hàng online nào
               </td>
             </tr>
@@ -1027,6 +1052,7 @@ const DonHangPage = () => {
                 <tr key={order.id} style={{ borderBottom: '1px solid #e3e8ee', fontSize: 16 }}>
                   <td style={{ padding: 12, textAlign: 'center' }}>{idx + 1}</td>
                   <td style={{ padding: 12, fontWeight: 700, color: '#1976d2' }}>{order.maDon}</td>
+                  <td style={{ padding: 12 }}>{order.tenNhanVien || '-'}</td>
                   <td style={{ padding: 12 }}>{order.tenNguoiNhan || 'Chưa có thông tin'}</td>
                   <td style={{ padding: 12 }}>{order.ngayTao}</td>
                   <td style={{ padding: 12 }}>{order.soDienThoaiGiaoHang|| '---'}</td>
@@ -1108,7 +1134,7 @@ const DonHangPage = () => {
 
   // Giao diện
   return (
-    <div style={{ padding: 32, minHeight: '100vh', background: '#f6f8fa' }}>
+    <div style={{ padding: 16, minHeight: '100vh', background: '#f6f8fa' }}>
       <h2 style={{ color: '#1976d2', fontWeight: 800, marginBottom: 24, letterSpacing: 1 }}>Quản lý đơn hàng</h2>
       <div style={{ display: 'flex', gap: 0, marginBottom: 0 }}>
         <button

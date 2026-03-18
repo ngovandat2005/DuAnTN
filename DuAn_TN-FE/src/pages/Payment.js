@@ -18,34 +18,52 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 // ✅ THÊM: Function kiểm tra số lượng đơn hàng hiện tại của khách hàng
 const checkCustomerOrderLimit = async (customerId) => {
   try {
+    // GỌI TRỰC TIẾP API ĐƠN HÀNG Ở PORT 8080 (như ban đầu)
     const response = await fetch(`http://localhost:8080/api/donhang/khach/${customerId}`);
     if (!response.ok) {
-      throw new Error('Không thể kiểm tra đơn hàng của khách hàng');
+      const errorText = await response.text();
+      console.error(`❌ API Trả về lỗi (${response.status}):`, errorText);
+
+      // Cố gắng parse JSON nếu có thể để lấy message lỗi từ Spring
+      let errorMessage = 'Không thể kiểm tra giới hạn đơn hàng.';
+      try {
+        const errorJson = JSON.parse(errorText);
+        if (errorJson.message) errorMessage = errorJson.message;
+      } catch (e) {
+        // Nếu không phải JSON, lấy một phần text
+        if (errorText && errorText.length < 100) errorMessage = errorText;
+      }
+
+      return {
+        success: false,
+        currentOrderCount: 0,
+        canCreateOrder: false,
+        message: `Lỗi server (${response.status}): ${errorMessage}`
+      };
     }
 
     const orders = await response.json();
     console.log('📋 Tất cả đơn hàng của khách hàng:', orders);
 
-    // Lọc các đơn hàng không tính vào giới hạn (trạng thái 4: Hoàn thành, 5: Đã hủy, 6: Trả hàng)
-    const activeOrders = orders.filter(order => ![4, 5, 6].includes(order.trangThai));
-    console.log('📊 Đơn hàng đang hoạt động (không tính 4,5,6):', activeOrders);
-    console.log('📈 Số lượng đơn hàng hiện tại:', activeOrders.length);
+    const activeOrders = orders.filter(order => ![4, 5, 6].includes(Number(order.trangThai)));
+    console.log('📊 Đơn hàng đang hoạt động:', activeOrders.length);
 
     return {
       success: true,
       currentOrderCount: activeOrders.length,
       canCreateOrder: activeOrders.length < 10,
       message: activeOrders.length >= 10
-        ? `Bạn đã đạt giới hạn tối đa 10 đơn hàng đang xử lý (hiện tại: ${activeOrders.length}). Vui lòng chờ các đơn hàng hiện tại hoàn thành trước khi tạo đơn mới.`
-        : `Bạn có thể tạo thêm ${10 - activeOrders.length} đơn hàng nữa.`
+        ? `Bạn đã đạt giới hạn tối đa 10 đơn hàng đang xử lý.`
+        : `Có thể tạo đơn hàng.`
     };
   } catch (error) {
-    console.error('❌ Lỗi khi kiểm tra giới hạn đơn hàng:', error);
+    const fallbackUrl = `http://localhost:8080/api/donhang/khach/${customerId}`;
+    console.error('❌ Lỗi kết nối API:', fallbackUrl, error);
     return {
       success: false,
       currentOrderCount: 0,
       canCreateOrder: false,
-      message: 'Không thể kiểm tra giới hạn đơn hàng. Vui lòng thử lại sau.'
+      message: `Lỗi kết nối máy chủ! URL: ${fallbackUrl}. Lỗi: ${error.message}`
     };
   }
 };
@@ -124,10 +142,17 @@ const Payment = () => {
       // ignore
     }
 
-    // gọi lại tính phí ship dựa trên địa chỉ mới
-    setTimeout(() => {
-      handleAddressChange();
-    }, 200);
+    // ✅ THÊM: Tính lại phí ship trực tiếp bằng giá trị lấy từ địa chỉ chọn
+    if (addr.districtId && addr.wardCode) {
+      let totalWeight = 0;
+      cart.forEach(item => {
+        const itemWeight = 500; // gram
+        const quantity = item.soLuong || item.quantity || 1;
+        totalWeight += itemWeight * quantity;
+      });
+      totalWeight = Math.max(totalWeight, 500);
+      calculateShippingFee(1484, addr.districtId, addr.wardCode, totalWeight);
+    }
   };
 
   // Load sổ địa chỉ từ localStorage khi vào trang
@@ -414,15 +439,21 @@ const Payment = () => {
     const fetchVouchers = async () => {
       setVoucherLoading(true);
       try {
-        const response = await fetch(config.getApiUrl('api/voucher/available'));
+        // Truyền orderId = 0 để API không bị lỗi hoặc lấy toàn bộ voucher khả dụng
+        const response = await fetch(config.getApiUrl('api/voucher/available?orderId=0'));
 
         if (response.ok) {
           const data = await response.json();
 
-          // ✅ Sử dụng trực tiếp data từ API (đã được backend lọc sẵn)
-          setVouchers(data);
+          // ✅ Lọc thêm trên frontend để chặn chắc chắn các voucher hết hạn hoặc hết lượt
+          const validVouchers = data.filter(voucher =>
+            voucher.trangThai === 1 &&
+            voucher.soLuong > 0 &&
+            new Date(voucher.ngayBatDau) <= new Date() &&
+            new Date(voucher.ngayKetThuc) >= new Date()
+          );
+          setVouchers(validVouchers);
         } else {
-          // Fallback: sử dụng API cũ nếu API mới lỗi
           // Fallback: sử dụng API cũ nếu API mới lỗi
           const fallbackResponse = await fetch(config.getApiUrl('api/voucher'));
           if (fallbackResponse.ok) {
@@ -434,7 +465,6 @@ const Payment = () => {
               new Date(voucher.ngayKetThuc) >= new Date()
             );
             setVouchers(availableVouchers);
-
           }
         }
       } catch (error) {
@@ -683,13 +713,12 @@ const Payment = () => {
     loadProvinces();
   }, [provinces.length]); // ✅ SỬA: Thêm dependency
 
-  // ✅ THÊM: Khởi tạo orderTotal và orderDiscount
+  // ✅ SỬA: Cập nhật orderTotal và finalTotal dựa trên orderDiscount
   useEffect(() => {
-    setOrderTotal(total);
-    setOrderDiscount(0);
-    // ✅ THÊM: Cập nhật finalTotal khi total hoặc shippingFee thay đổi
-    setFinalTotal(total + shippingFee);
-  }, [total, shippingFee]);
+    setOrderTotal(total - orderDiscount);
+    // Cập nhật finalTotal giữ nguyên voucher đang chọn
+    setFinalTotal(total + shippingFee - orderDiscount);
+  }, [total, shippingFee, orderDiscount]);
 
   // ✅ THÊM: Tự động tính phí ship khi địa chỉ thay đổi
   useEffect(() => {
@@ -748,6 +777,7 @@ const Payment = () => {
           toast.warning(`Voucher yêu cầu đơn hàng tối thiểu ${voucher.donToiThieu.toLocaleString()}₫`);
           setVoucherMessage('Voucher không đủ điều kiện áp dụng!');
           setSelectedVoucherId(''); // Reset nếu không đủ điều kiện
+          setOrderDiscount(0);
         }
       }
     } else {
@@ -1230,71 +1260,52 @@ const Payment = () => {
     }
   };
 
-  // ✅ THÊM: Function áp dụng voucher qua API mới (giống BanHangTaiQuay)
+  // ✅ THÊM: Function áp dụng voucher qua API mới
   const applyVoucherToOrder = async (orderId, voucherId) => {
     if (!orderId || !voucherId) return false;
 
     try {
-      const response = await fetch(config.getApiUrl(`api/donhang/${orderId}/apply-voucher/${voucherId}`), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+      // ✅ SỬA: Thay thế endpoint bằng `/api/update-voucher/${orderId}`
+      const response = await fetch(config.getApiUrl(`api/update-voucher/${orderId}`), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idgiamGia: Number(voucherId) })
       });
 
       if (response.ok) {
         const updatedOrder = await response.json();
 
-        // ✅ THÊM: Trừ số lượng voucher đi 1 sau khi áp dụng thành công
+        // ✅ Phía backend (DonHangService) có thể đã trừ tồn kho tự động rồi
+        // Tuy nhiên, logic UI trừ hiển thị vẫn giữ
         try {
-          console.log('🎫 Đang trừ số lượng voucher...');
-
-          // ✅ SỬA: Sử dụng API update có sẵn thay vì tạo API mới
-          // Tìm voucher hiện tại để lấy thông tin cập nhật
+          console.log('🎫 Đang cập nhật số lượng voucher UI...');
           const currentVoucher = vouchers.find(v => v.id === Number(voucherId));
           if (currentVoucher) {
             const newQuantity = Math.max(0, currentVoucher.soLuong - 1);
+            
+            // ✅ Cập nhật state vouchers để giảm số lượng hiển thị
+            setVouchers(prevVouchers =>
+              prevVouchers.map(v =>
+                v.id === Number(voucherId)
+                  ? { ...v, soLuong: newQuantity }
+                  : v
+              )
+            );
 
-            const decreaseVoucherResponse = await fetch(config.getApiUrl(`api/voucher/update/${voucherId}`), {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                ...currentVoucher,
-                soLuong: newQuantity
-              })
-            });
-
-            if (decreaseVoucherResponse.ok) {
-              console.log('✅ Đã trừ số lượng voucher thành công');
-
-              // ✅ Cập nhật state vouchers để giảm số lượng hiển thị
-              setVouchers(prevVouchers =>
-                prevVouchers.map(v =>
-                  v.id === Number(voucherId)
-                    ? { ...v, soLuong: newQuantity }
-                    : v
-                )
-              );
-
-              // ✅ THÊM: Thông báo nếu voucher hết số lượng
-              if (newQuantity === 0) {
-                toast.info('🎫 Voucher đã hết số lượng!');
-
-                // ✅ Tự động bỏ chọn voucher nếu hết số lượng
-                setSelectedVoucherId('');
-                setOrderDiscount(0);
-                setOrderTotal(total);
-                setFinalTotal(total + shippingFee);
-              }
-            } else {
-              console.warn('⚠️ Không thể trừ số lượng voucher, nhưng voucher đã được áp dụng');
+            // ✅ THÊM: Thông báo nếu voucher hết số lượng
+            if (newQuantity === 0) {
+              toast.info('🎫 Voucher đã hết số lượng!');
+              setSelectedVoucherId('');
+              setOrderDiscount(0);
+              setOrderTotal(total);
+              setFinalTotal(total + shippingFee);
             }
-          } else {
-            console.warn('⚠️ Không tìm thấy voucher để cập nhật số lượng');
           }
-        } catch (decreaseError) {
-          console.warn('⚠️ Lỗi khi trừ số lượng voucher:', decreaseError);
+        } catch (uiUpdateError) {
+          console.warn('⚠️ Lỗi khi cập nhật UI số lượng voucher:', uiUpdateError);
         }
 
-        // ✅ Fetch lại thông tin đơn hàng để lấy tổng tiền mới (giống BanHangTaiQuay)
+        // ✅ Fetch lại thông tin đơn hàng để lấy tổng tiền mới
         await fetchOrderInfo(orderId);
 
         return true;
@@ -1325,6 +1336,9 @@ const Payment = () => {
   };
 
   const handlePayment = async () => {
+    // Ngăn chặn click nhiều lần
+    if (loading) return;
+
     // ✅ SỬA: Validation chi tiết hơn
     if (!customerName.trim()) {
       toast.warning('Vui lòng nhập họ tên khách hàng!');
@@ -1377,11 +1391,14 @@ const Payment = () => {
       return;
     }
 
-    // ✅ THÊM: Kiểm tra giới hạn đơn hàng TRƯỚC KHI xử lý bất kỳ phương thức thanh toán nào
+    setLoading(true);
+
     try {
+      // ✅ THÊM: Kiểm tra giới hạn đơn hàng TRƯỚC KHI xử lý bất kỳ phương thức thanh toán nào
       const customerId = getCustomerId();
       if (!customerId) {
         toast.error('Không thể xác định thông tin người dùng. Vui lòng đăng nhập lại!');
+        setLoading(false);
         return;
       }
 
@@ -1390,6 +1407,7 @@ const Payment = () => {
 
       if (!orderLimitCheck.success) {
         toast.error(orderLimitCheck.message);
+        setLoading(false);
         return;
       }
 
@@ -1425,7 +1443,7 @@ const Payment = () => {
             width: '500px'
           }).then((result) => {
             if (result.isConfirmed) {
-              navigate('/order-history');
+              navigate('/orders');
             }
           });
         } else {
@@ -1438,16 +1456,16 @@ const Payment = () => {
             draggable: true,
           });
         }
+        setLoading(false);
         return;
       }
 
       console.log('✅ Khách hàng có thể tạo đơn hàng mới:', orderLimitCheck.message);
     } catch (error) {
       toast.error('Lỗi khi kiểm tra giới hạn đơn hàng: ' + error.message);
+      setLoading(false);
       return;
     }
-
-    setLoading(true);
 
     // Nếu chọn thanh toán online (VNPAY)
     if (paymentMethod === 'bank') {
@@ -1689,7 +1707,7 @@ const Payment = () => {
         console.log('Bước 3: Không có voucher - cập nhật tổng tiền đơn hàng...');
 
         try {
-          const updateTotalRes = await fetch(config.getApiUrl(`api/don-hang/${newOrderId}/cap-nhat-tong-tien`), {
+          const updateTotalRes = await fetch(config.getApiUrl(`api/donhang/${newOrderId}/cap-nhat-tong-tien`), {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' }
           });
@@ -1839,11 +1857,11 @@ const Payment = () => {
             </div>
             <div className="gx-payment-address-body">
               <div className="gx-payment-address-name">
-                  {safeText(customerName, 'Chưa có tên')}{' '}
-                  <span className="gx-payment-address-phone">{safeText(formatPhone(customerPhone), 'Chưa có SĐT')}</span>
+                {safeText(customerName, 'Chưa có tên')}{' '}
+                <span className="gx-payment-address-phone">{safeText(formatPhone(customerPhone), 'Chưa có SĐT')}</span>
               </div>
               <div className="gx-payment-address-text">
-                  {prettyAddress(customerAddress) || 'Chưa có địa chỉ. Vui lòng nhập thông tin bên dưới.'}
+                {prettyAddress(customerAddress) || 'Chưa có địa chỉ. Vui lòng nhập thông tin bên dưới.'}
               </div>
             </div>
           </div>
@@ -2005,11 +2023,11 @@ const Payment = () => {
                       </div>
 
                       <div className="gx-payment-order-cell gx-payment-order-cell--qty" role="cell">
-                        x{item.qty}
+                        {item.qty || 1}
                       </div>
 
                       <div className="gx-payment-order-cell gx-payment-order-cell--amount" role="cell">
-                        <div className="gx-payment-amount">{formatVnd(lineTotal)}</div>
+                        <div className="gx-payment-price-new">{formatVnd(lineTotal)}</div>
                       </div>
                     </div>
                   );
@@ -2017,7 +2035,7 @@ const Payment = () => {
               </div>
             )}
           </div>
-          <div className="gx-payment-summary gx-payment-card">
+          <div className="gx-payment-summary">
             <div className="gx-payment-summary-row">
               <span className="gx-payment-label">Tạm tính:</span>
               <span className="gx-payment-value">{formatVnd(total)}</span>
@@ -2075,6 +2093,8 @@ const Payment = () => {
               }
               return null;
             })()}
+
+
 
             {/* ✅ THÊM: Hiển thị tổng tiền sau khi áp dụng voucher */}
             {selectedVoucherId && orderDiscount > 0 && (
@@ -2266,12 +2286,14 @@ const Payment = () => {
                   savedAddresses.map(addr => (
                     <div
                       key={addr.id}
+                      onClick={() => applyAddressFromBook(addr)}
                       style={{
                         padding: '10px 0',
                         borderBottom: '1px solid #f0f0f0',
                         display: 'flex',
                         alignItems: 'flex-start',
-                        gap: 8
+                        gap: 8,
+                        cursor: 'pointer'
                       }}
                     >
                       <input

@@ -48,9 +48,9 @@ body, html {
 
 .admin-content {
   flex: 1;
-  padding: 32px;
+  padding: 24px;
   background-color: #fff;
-  margin: 20px;
+  margin: 12px;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.09);
 }
@@ -389,9 +389,10 @@ table:not(.cart-table) tr:last-child td {
 .admin-content-page .modal-content, .admin-content-page .ant-modal-content {
   background: #fff !important;
   border-radius: 18px !important;
-  padding: 36px 36px 28px 36px !important;
-  min-width: 420px;
-  max-width: 96vw;
+  padding: 24px 24px 20px 24px !important;
+  min-width: 600px;
+  max-width: 98vw;
+  width: 90%;
   box-shadow: 0 12px 48px rgba(25,118,210,0.13) !important;
   animation: modalFadeIn 0.2s;
 }

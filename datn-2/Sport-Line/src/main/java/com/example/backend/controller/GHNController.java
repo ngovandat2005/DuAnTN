@@ -32,6 +32,7 @@ public class GHNController {
     /**
      * Lấy danh sách tỉnh/thành từ GHN
      */
+    @SuppressWarnings("unchecked")
     @GetMapping("/provinces")
     public ResponseEntity<?> getProvinces() {
         String url = ghnBaseUrl + "/master-data/province";
@@ -51,6 +52,7 @@ public class GHNController {
     /**
      * Lấy danh sách quận/huyện theo ProvinceID
      */
+    @SuppressWarnings("unchecked")
     @GetMapping("/districts/{provinceId}")
     public ResponseEntity<?> getDistricts(@PathVariable("provinceId") Integer provinceId) {
         String url = ghnBaseUrl + "/master-data/district";
@@ -74,6 +76,7 @@ public class GHNController {
     /**
      * Lấy danh sách phường/xã theo DistrictID
      */
+    @SuppressWarnings("unchecked")
     @GetMapping("/wards/{districtId}")
     public ResponseEntity<?> getWards(@PathVariable("districtId") Integer districtId) {
         String url = ghnBaseUrl + "/master-data/ward";
@@ -99,6 +102,12 @@ public class GHNController {
      */
     @PostMapping("/calculate-fee")
     public ResponseEntity<?> calculateFee(@RequestBody FeeRequest feeRequest) {
+        if (feeRequest == null || feeRequest.getToDistrict() == 0 || feeRequest.getToWardCode() == null) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("total_fee", 30000); // Trả về phí mặc định thay vì lỗi
+            return ResponseEntity.ok(error);
+        }
+
         int fee = ghnClientService.tinhPhiVanChuyen(
                 feeRequest.getToDistrict(),
                 feeRequest.getToWardCode(),

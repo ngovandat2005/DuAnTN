@@ -5,7 +5,7 @@ import com.example.backend.dto.ThemGioHangDTO;
 import com.example.backend.entity.GioHangChiTiet;
 import com.example.backend.entity.KhachHang;
 import com.example.backend.entity.SanPhamChiTiet;
-import com.example.backend.repository.GioHangChiTietRepo;
+import com.example.backend.repository.GioHangChiTietRepository;
 import com.example.backend.repository.KhachHangRepository;
 import com.example.backend.repository.SanPhamChiTietRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,7 +17,7 @@ import java.util.List;
 public class GioHangChiTietService {
 
     @Autowired
-    private GioHangChiTietRepo repo;
+    private GioHangChiTietRepository repo;
 
     @Autowired
     private SanPhamChiTietRepository spctRepo;
@@ -79,5 +79,8 @@ public class GioHangChiTietService {
     // 7. Tổng tiền
     public double tongTien(Integer idKhachHang) {
         return repo.tinhTongTienGioHang(idKhachHang);
+    }
+     public void xoaTheoId(Integer id) {
+        repo.deleteById(id);
     }
 }
