@@ -337,7 +337,7 @@ function ProductDetail() {
   const getProductImage = (variant) => {
     if (!variant) return '/logo.png';
 
-    let img = variant?.sanPham?.imanges || variant?.imanges || variant?.images;
+    let img = variant?.sanPham?.images || variant?.images || variant?.images;
     if (!img) return '/logo.png';
 
     if (Array.isArray(img)) img = img[0];
@@ -495,7 +495,7 @@ function ProductDetail() {
               <Title level={4}>Mô tả sản phẩm</Title>
 
               <Paragraph>
-                {product?.moTa || "Giày thể thao cao cấp với thiết kế hiện đại, phù hợp chạy bộ và hoạt động hàng ngày."}
+                {product?.ghiChu || "Chưa có mô tả sản phẩm"}
               </Paragraph>
 
               <ul className="product-features">

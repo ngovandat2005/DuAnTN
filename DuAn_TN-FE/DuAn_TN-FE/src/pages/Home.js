@@ -132,7 +132,7 @@ function ProductCard({ product }) {
       .replace(/(^-|-$)/g, '');
 
   // Xử lý ảnh sản phẩm - kiểm tra nhiều trường có thể có
-  let productImage = product.hinhAnh || product.image || product.imanges || null;
+  let productImage = product.hinhAnh || product.image || product.images || null;
 
   // Nếu imanges là array, lấy ảnh đầu tiên
   if (Array.isArray(productImage)) {
@@ -333,7 +333,7 @@ function Home() {
             console.log('🔍 ThuongHieu value:', allProducts[0].thuongHieu);
             console.log('🔍 HinhAnh:', allProducts[0].hinhAnh);
             console.log('🔍 Image:', allProducts[0].image);
-            console.log('🔍 Imanges:', allProducts[0].imanges);
+            console.log('🔍 Images:', allProducts[0].images);
 
             // Debug tên sản phẩm
             console.log('🔍 Tên sản phẩm - ten:', allProducts[0].ten);

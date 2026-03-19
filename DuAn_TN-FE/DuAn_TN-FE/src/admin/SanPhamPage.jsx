@@ -33,7 +33,8 @@ const SanPhamPage = () => {
     giaBan: "",
     giaGiamGia: "",
     trangThai: 1,
-    imanges: ""
+    images: "",
+    ghiChu: ""
   });
   const [loading, setLoading] = useState(false);
   const [trangThai, setTrangThai] = useState("");
@@ -171,6 +172,7 @@ const SanPhamPage = () => {
     setLoading(true);
     const data = {
       tenSanPham: addForm.tenSanPham,
+      ghiChu: addForm.ghiChu,
       thuongHieu: {
         id: addForm.idThuongHieu,
       },
@@ -187,7 +189,7 @@ const SanPhamPage = () => {
       danhMuc: {
         id: addForm.idDanhMuc
       },
-      imanges: Array.isArray(addForm.imanges) ? addForm.imanges.join(',') : addForm.imanges
+      images: Array.isArray(addForm.images) ? addForm.images.join(',') : addForm.images
     };
     try {
       const res = await axios.post("http://localhost:8080/api/san-pham/add", {
@@ -207,7 +209,8 @@ const SanPhamPage = () => {
         giaBan: "",
         giaGiamGia: "",
         trangThai: 1,
-        imanges: ""
+        images: "",
+        ghiChu: ""
       });
       // Chuyển hướng sang trang chi tiết sản phẩm vừa tạo
       navigate(`/admin-panel/products/${res.data.id}`);
@@ -248,7 +251,8 @@ const SanPhamPage = () => {
       giaBan: product.giaBan || "",
       giaGiamGia: product.giaGiamGia || "",
       trangThai: product.trangThai,
-      imanges: product.imanges || ""
+      images: product.images || "",
+      ghiChu: product.ghiChu || "",
     });
     setShowEditModal(true);
   };
@@ -266,7 +270,8 @@ const SanPhamPage = () => {
       giaBan: Number(editForm.giaBan),
       giaGiamGia: editForm.giaGiamGia ? Number(editForm.giaGiamGia) : 0,
       trangThai: Number(editForm.trangThai),
-      imanges: editForm.imanges
+      images: editForm.images,
+      ghiChu: editForm.ghiChu,
     };
     if (editForm.idKhuyenMai) {
       data.khuyenMai = { id: editForm.idKhuyenMai };
@@ -336,7 +341,7 @@ const SanPhamPage = () => {
       });
       const data = await res.json();
       if (data && data.fileName) {
-        setEditForm(f => ({ ...f, imanges: data.fileName }));
+        setEditForm(f => ({ ...f, images: data.fileName }));
       } else {
         alert('Upload ảnh thất bại!');
       }
@@ -345,7 +350,6 @@ const SanPhamPage = () => {
     }
     setUploadingEditImage(false);
   };
-
 
 
 
@@ -424,9 +428,9 @@ const SanPhamPage = () => {
       }
 
       console.log('Final uploaded array:', uploaded); // Debug log
-      console.log('Setting addForm.imanges to:', uploaded); // Debug log
+      console.log('Setting addForm.images to:', uploaded); // Debug log
       setAddForm(f => {
-        const newForm = { ...f, imanges: uploaded };
+        const newForm = { ...f, images: uploaded };
         console.log('New addForm:', newForm); // Debug log
         return newForm;
       });
@@ -494,21 +498,15 @@ const SanPhamPage = () => {
     }
   };
 
+
   // Thêm lại hàm xử lý đường dẫn ảnh ở đầu component
   const getImageUrl = (img) => {
     if (!img) return "/logo.png";
 
     if (Array.isArray(img)) img = img[0];
-    if (typeof img === "string" && img.includes(",")) {
-      img = img.split(",")[0];
-    }
+    if (img.includes(",")) img = img.split(",")[0];
 
-    img = img.trim();
-    if (!img) return "/logo.png";
-
-    if (img.startsWith("http")) return img;
-
-    return `http://localhost:8080/images/${encodeURIComponent(img)}`;
+    return `http://localhost:8080/images/${img}`;
   };
 
   // Thêm hàm xử lý đổi trạng thái biến thể sản phẩm
@@ -704,6 +702,11 @@ const SanPhamPage = () => {
                 onChange={(e) => setAddForm((f) => ({ ...f, tenSanPham: e.target.value }))}
               />
               {addNameError && <span style={{ color: 'red' }}>{addNameError}</span>}
+              <Input
+                placeholder="Ghi chú"
+                value={addForm.ghiChu}
+                onChange={(e) => setAddForm((f) => ({ ...f, ghiChu: e.target.value }))}
+              />
               <input
                 type="file"
                 accept="image/*"
@@ -716,10 +719,10 @@ const SanPhamPage = () => {
                   ⏳ Đang upload ảnh...
                 </div>
               )}
-              {console.log('Rendering addForm.imanges:', addForm.imanges)} {/* Debug log */}
-              {Array.isArray(addForm.imanges) && addForm.imanges.length > 0 && (
+              {console.log('Rendering addForm.images:', addForm.images)} {/* Debug log */}
+              {Array.isArray(addForm.images) && addForm.images.length > 0 && (
                 <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                  {addForm.imanges.map((img, idx) => {
+                  {addForm.images.map((img, idx) => {
                     const imgSrc = getImageUrl(img);
                     console.log(`Rendering image ${idx}:`, imgSrc); // Debug log
                     return (
@@ -874,6 +877,11 @@ const SanPhamPage = () => {
                 onChange={(e) => setEditForm((f) => ({ ...f, tenSanPham: e.target.value }))}
               />
               {editNameError && <span style={{ color: 'red' }}>{editNameError}</span>}
+              <Input
+                placeholder="Ghi chú"
+                value={editForm.ghiChu || ""}
+                onChange={(e) => setEditForm((f) => ({ ...f, ghiChu: e.target.value }))}
+              />
               <input
                 type="file"
                 accept="image/*"
@@ -881,17 +889,17 @@ const SanPhamPage = () => {
                 style={{ marginBottom: 8 }}
               />
               {uploadingEditImage && <span>Đang upload ảnh...</span>}
-              {editForm.imanges && (
+              {editForm.images && (
                 <img
-                  src={getImageUrl(editForm.imanges)}
+                  src={getImageUrl(editForm.images)}
                   alt={editForm.tenSanPham}
                   style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 6, marginBottom: 8 }}
                   onError={(e) => {
-                    console.error(`Edit image failed to load: ${editForm.imanges}`);
+                    console.error(`Edit image failed to load: ${editForm.images}`);
                     e.target.style.display = 'none';
                   }}
                   onLoad={() => {
-                    console.log(`Edit image loaded successfully: ${editForm.imanges}`);
+                    console.log(`Edit image loaded successfully: ${editForm.images}`);
                   }}
                 />
               )}
@@ -1045,6 +1053,7 @@ const SanPhamPage = () => {
               <th>mã sản phẩm</th>
               <th>Ảnh</th>
               <th>Tên sản phẩm</th>
+              <th>Ghi chú</th>
               <th>Danh mục</th>
               <th>Thương hiệu</th>
               <th>Chất liệu</th>
@@ -1094,7 +1103,7 @@ const SanPhamPage = () => {
                     <td>{product.id}</td>
                     <td style={{ width: 80, height: 80, textAlign: 'center', verticalAlign: 'middle' }}>
                       <img
-                        src={getImageUrl(product.imanges)}
+                        src={getImageUrl(product.images)}
                         alt={"Không có ảnh"}
                         style={{
                           width: 90,
@@ -1106,12 +1115,13 @@ const SanPhamPage = () => {
                           border: "1px solid #eee"
                         }}
                         onError={e => {
-                          console.error(`Product image failed to load: ${product.imanges}`);
+                          console.error(`Product image failed to load: ${product.images}`);
                           e.target.src = "/logo.png";
                         }}
                       />
                     </td>
                     <td>{product.tenSanPham}</td>
+                    <td>{product.ghiChu || "-"}</td>
                     <td>{product.danhMuc?.tenDanhMuc || "-"}</td>
                     <td>{product.thuongHieu?.tenThuongHieu || "-"}</td>
                     <td>{product.chatLieu?.tenChatLieu || "-"}</td>

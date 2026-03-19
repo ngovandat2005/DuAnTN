@@ -18,7 +18,7 @@ public class SanPhamService {
     private SanPhamInterface sanPhamRepo;
 
     public List<SanPham> getAllActive() {
-        return sanPhamRepo.findAllByTrangThai(1);
+        return sanPhamRepo.findAll();
     }
 
     public SanPham getById(Integer id) {
@@ -57,6 +57,7 @@ public class SanPhamService {
         }
 
         current.setTenSanPham(sanPham.getTenSanPham());
+        current.setGhiChu(sanPham.getGhiChu());
 //        current.setMaSanPham(sanPham.getMaSanPham());
         current.setThuongHieu(sanPham.getThuongHieu());
         current.setDanhMuc(sanPham.getDanhMuc());

@@ -261,3 +261,57 @@ INSERT INTO [dbo].[GioHangChiTiet] ([idSanPhamChiTiet], [idKhachHang], [soLuong]
 (10, 10, 2, 1232000);
 
 PRINT 'Thêm 10 dòng dữ liệu vào các Bảng thành công!'
+
+
+ALTER TABLE [dbo].[SanPham] 
+ADD [GhiChu] NVARCHAR(MAX); 
+GO
+
+
+USE [KingStepp3];
+GO
+
+UPDATE [dbo].[SanPham] SET [GhiChu] = N'Dòng giày chạy bộ huyền thoại, đệm Air Zoom cực êm.' WHERE [Id] = 1;
+UPDATE [dbo].[SanPham] SET [GhiChu] = N'Công nghệ hoàn trả năng lượng tốt nhất của Adidas.' WHERE [Id] = 2;
+UPDATE [dbo].[SanPham] SET [GhiChu] = N'Thiết kế không dây hoặc có dây linh hoạt, bám sân cỏ nhân tạo.' WHERE [Id] = 3;
+UPDATE [dbo].[SanPham] SET [GhiChu] = N'Đế bằng, hỗ trợ vững chãi cho các bài tập Squat và Deadlift.' WHERE [Id] = 4;
+UPDATE [dbo].[SanPham] SET [GhiChu] = N'Độ bám sân cực cao, hỗ trợ những pha đổi hướng đột ngột.' WHERE [Id] = 5;
+UPDATE [dbo].[SanPham] SET [GhiChu] = N'Biểu tượng thời trang đường phố, dễ phối mọi loại đồ.' WHERE [Id] = 6;
+UPDATE [dbo].[SanPham] SET [GhiChu] = N'Bảo vệ cổ chân tốt, phù hợp cho người chơi Tennis chuyên nghiệp.' WHERE [Id] = 7;
+UPDATE [dbo].[SanPham] SET [GhiChu] = N'Phong cách tối giản, xỏ chân vào là đi ngay.' WHERE [Id] = 8;
+UPDATE [dbo].[SanPham] SET [GhiChu] = N'Chất liệu Canvas bền bỉ, không bao giờ lỗi mốt.' WHERE [Id] = 9;
+UPDATE [dbo].[SanPham] SET [GhiChu] = N'Màu sắc nổi bật, phong cách Chunky năng động.' WHERE [Id] = 10;
+
+GO
+
+-- ==========================================
+-- BẢNG ĐÁNH GIÁ VÀ BÌNH LUẬN
+-- ==========================================
+
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[DanhGia]') AND type in (N'U'))
+CREATE TABLE [dbo].[DanhGia] (
+    [Id] INT IDENTITY(1,1) PRIMARY KEY,
+    [IdSanPham] INT NOT NULL,          -- Đánh giá cho sản phẩm nào
+    [IdKhachHang] INT NOT NULL,         -- Ai là người đánh giá
+    [SoSao] INT CHECK ([SoSao] >= 1 AND [SoSao] <= 5), -- Đánh giá từ 1 đến 5 sao
+    [NoiDung] NVARCHAR(MAX),            -- Nội dung bình luận
+    [NgayDanhGia] DATETIME DEFAULT GETDATE(), -- Thời điểm đánh giá
+    [TrangThai] INT DEFAULT 1,          -- 1: Hiển thị, 0: Ẩn (nếu vi phạm chính sách)
+    
+    FOREIGN KEY ([IdSanPham]) REFERENCES [dbo].[SanPham]([Id]),
+    FOREIGN KEY ([IdKhachHang]) REFERENCES [dbo].[KhachHang]([id])
+);
+GO
+
+INSERT INTO [dbo].[DanhGia] ([IdSanPham], [IdKhachHang], [SoSao], [NoiDung], [NgayDanhGia], [TrangThai]) VALUES 
+(1, 1, 5, N'Giày đi êm chân lắm, shop giao hàng nhanh!', GETDATE(), 1),
+(1, 2, 4, N'Hàng đẹp, đúng mẫu, nhưng hộp hơi móp tí.', GETDATE(), 1),
+(2, 3, 5, N'Màu sắc bên ngoài đẹp hơn trong ảnh luôn.', GETDATE(), 1),
+(3, 4, 3, N'Đế hơi cứng, chắc phải đi vài lần mới mềm ra.', GETDATE(), 1),
+(4, 5, 5, N'Sản phẩm tuyệt vời, sẽ ủng hộ shop tiếp.', GETDATE(), 1),
+(5, 6, 2, N'Giao nhầm size cho mình rồi shop ơi.', GETDATE(), 1),
+(6, 7, 5, N'Chất lượng tốt so với tầm giá.', GETDATE(), 1),
+(7, 8, 4, N'Giày nhẹ, ôm chân, rất phù hợp chạy bộ.', GETDATE(), 1),
+(8, 9, 5, N'Ưng ý cực kỳ, đóng gói rất cẩn thận.', GETDATE(), 1),
+(9, 10, 1, N'Hàng không giống hình cho lắm, hơi thất vọng.', GETDATE(), 1);
+

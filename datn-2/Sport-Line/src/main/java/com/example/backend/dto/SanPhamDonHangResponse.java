@@ -11,6 +11,7 @@ import lombok.Setter;
 @Getter
 public class SanPhamDonHangResponse {
     private String tenSanPham;
+    private String ghiChu; // Thêm vào nếu cần hiển thị trong hóa đơn/đơn hàng
     private String tenKichThuoc;
     private String tenMauSac;
     private Integer soLuong;

@@ -49,4 +49,7 @@ public class SanPham {
 
     @Column(name = "TrangThai")
     private Integer trangThai;
+
+    @Column(name = "GhiChu") // Thêm dòng này
+    private String ghiChu;
 }
