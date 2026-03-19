@@ -314,4 +314,291 @@ INSERT INTO [dbo].[DanhGia] ([IdSanPham], [IdKhachHang], [SoSao], [NoiDung], [Ng
 (7, 8, 4, N'Giày nhẹ, ôm chân, rất phù hợp chạy bộ.', GETDATE(), 1),
 (8, 9, 5, N'Ưng ý cực kỳ, đóng gói rất cẩn thận.', GETDATE(), 1),
 (9, 10, 1, N'Hàng không giống hình cho lắm, hơi thất vọng.', GETDATE(), 1);
+IF EXISTS (
+    SELECT 1
+    FROM sys.check_constraints
+    WHERE name = 'CK_SanPhamChiTiet_SoLuong_KhongAm'
+)
+BEGIN
+    ALTER TABLE dbo.SanPhamChiTiet
+    DROP CONSTRAINT CK_SanPhamChiTiet_SoLuong_KhongAm;
+END
+GO
 
+IF EXISTS (
+    SELECT 1
+    FROM sys.check_constraints
+    WHERE name = 'CK_DonHangChiTiet_SoLuong_Duong'
+)
+BEGIN
+    ALTER TABLE dbo.donHangChiTiet
+    DROP CONSTRAINT CK_DonHangChiTiet_SoLuong_Duong;
+END
+GO
+
+IF EXISTS (
+    SELECT 1
+    FROM sys.check_constraints
+    WHERE name = 'CK_GioHangChiTiet_SoLuong_Duong'
+)
+BEGIN
+    ALTER TABLE dbo.GioHangChiTiet
+    DROP CONSTRAINT CK_GioHangChiTiet_SoLuong_Duong;
+END
+GO
+
+IF OBJECT_ID('dbo.TRG_DonHangChiTiet_Insert_TruKho', 'TR') IS NOT NULL
+    DROP TRIGGER dbo.TRG_DonHangChiTiet_Insert_TruKho;
+GO
+
+IF OBJECT_ID('dbo.TRG_DonHangChiTiet_Update_SuaKho', 'TR') IS NOT NULL
+    DROP TRIGGER dbo.TRG_DonHangChiTiet_Update_SuaKho;
+GO
+
+IF OBJECT_ID('dbo.TRG_DonHangChiTiet_Delete_HoanKho', 'TR') IS NOT NULL
+    DROP TRIGGER dbo.TRG_DonHangChiTiet_Delete_HoanKho;
+GO
+
+/* 2) CHUẨN HÓA DỮ LIỆU SỐ LƯỢNG */
+UPDATE dbo.SanPhamChiTiet
+SET SoLuong = 0
+WHERE SoLuong IS NULL OR SoLuong < 0;
+GO
+
+UPDATE dbo.donHangChiTiet
+SET soLuong = 1
+WHERE soLuong IS NULL OR soLuong <= 0;
+GO
+
+UPDATE dbo.GioHangChiTiet
+SET soLuong = 1
+WHERE soLuong IS NULL OR soLuong <= 0;
+GO
+
+ALTER TABLE dbo.SanPhamChiTiet
+ALTER COLUMN SoLuong INT NOT NULL;
+GO
+
+ALTER TABLE dbo.donHangChiTiet
+ALTER COLUMN soLuong INT NOT NULL;
+GO
+
+ALTER TABLE dbo.GioHangChiTiet
+ALTER COLUMN soLuong INT NOT NULL;
+GO
+
+/* 3) THÊM CHECK CONSTRAINT */
+ALTER TABLE dbo.SanPhamChiTiet
+ADD CONSTRAINT CK_SanPhamChiTiet_SoLuong_KhongAm
+CHECK (SoLuong >= 0);
+GO
+
+ALTER TABLE dbo.donHangChiTiet
+ADD CONSTRAINT CK_DonHangChiTiet_SoLuong_Duong
+CHECK (soLuong > 0);
+GO
+
+ALTER TABLE dbo.GioHangChiTiet
+ADD CONSTRAINT CK_GioHangChiTiet_SoLuong_Duong
+CHECK (soLuong > 0);
+GO
+
+IF OBJECT_ID('dbo.TRG_DonHangChiTiet_Insert_TruKho', 'TR') IS NOT NULL
+    DROP TRIGGER dbo.TRG_DonHangChiTiet_Insert_TruKho;
+GO
+
+CREATE TRIGGER dbo.TRG_DonHangChiTiet_Insert_TruKho
+ON dbo.donHangChiTiet
+AFTER INSERT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF EXISTS
+    (
+        SELECT 1
+        FROM
+        (
+            SELECT idSanPhamChiTiet, SUM(soLuong) AS TongSoLuongDat
+            FROM inserted
+            GROUP BY idSanPhamChiTiet
+        ) i
+        JOIN dbo.SanPhamChiTiet s
+            ON s.Id = i.idSanPhamChiTiet
+        WHERE s.SoLuong = 0
+    )
+    BEGIN
+        RAISERROR (N'Hang da het.', 16, 1);
+        ROLLBACK TRANSACTION;
+        RETURN;
+    END
+
+    IF EXISTS
+    (
+        SELECT 1
+        FROM
+        (
+            SELECT idSanPhamChiTiet, SUM(soLuong) AS TongSoLuongDat
+            FROM inserted
+            GROUP BY idSanPhamChiTiet
+        ) i
+        JOIN dbo.SanPhamChiTiet s
+            ON s.Id = i.idSanPhamChiTiet
+        WHERE s.SoLuong < i.TongSoLuongDat
+    )
+    BEGIN
+        RAISERROR (N'Khong du so luong ton.', 16, 1);
+        ROLLBACK TRANSACTION;
+        RETURN;
+    END
+
+    UPDATE s
+    SET s.SoLuong = s.SoLuong - i.TongSoLuongDat
+    FROM dbo.SanPhamChiTiet s
+    JOIN
+    (
+        SELECT idSanPhamChiTiet, SUM(soLuong) AS TongSoLuongDat
+        FROM inserted
+        GROUP BY idSanPhamChiTiet
+    ) i
+        ON s.Id = i.idSanPhamChiTiet;
+END;
+GO
+
+
+IF OBJECT_ID('dbo.TRG_DonHangChiTiet_Update_SuaKho', 'TR') IS NOT NULL
+    DROP TRIGGER dbo.TRG_DonHangChiTiet_Update_SuaKho;
+GO
+
+CREATE TRIGGER dbo.TRG_DonHangChiTiet_Update_SuaKho
+ON dbo.donHangChiTiet
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF EXISTS
+    (
+        SELECT 1
+        FROM
+        (
+            SELECT
+                COALESCE(n.idSanPhamChiTiet, o.idSanPhamChiTiet) AS idSanPhamChiTiet,
+                ISNULL(n.SoLuongMoi, 0) - ISNULL(o.SoLuongCu, 0) AS ChenhLech
+            FROM
+            (
+                SELECT idSanPhamChiTiet, SUM(soLuong) AS SoLuongMoi
+                FROM inserted
+                GROUP BY idSanPhamChiTiet
+            ) n
+            FULL OUTER JOIN
+            (
+                SELECT idSanPhamChiTiet, SUM(soLuong) AS SoLuongCu
+                FROM deleted
+                GROUP BY idSanPhamChiTiet
+            ) o
+                ON n.idSanPhamChiTiet = o.idSanPhamChiTiet
+        ) b
+        JOIN dbo.SanPhamChiTiet s
+            ON s.Id = b.idSanPhamChiTiet
+        WHERE b.ChenhLech > 0
+          AND s.SoLuong = 0
+    )
+    BEGIN
+        RAISERROR (N'Hang da het.', 16, 1);
+        ROLLBACK TRANSACTION;
+        RETURN;
+    END
+
+    IF EXISTS
+    (
+        SELECT 1
+        FROM
+        (
+            SELECT
+                COALESCE(n.idSanPhamChiTiet, o.idSanPhamChiTiet) AS idSanPhamChiTiet,
+                ISNULL(n.SoLuongMoi, 0) - ISNULL(o.SoLuongCu, 0) AS ChenhLech
+            FROM
+            (
+                SELECT idSanPhamChiTiet, SUM(soLuong) AS SoLuongMoi
+                FROM inserted
+                GROUP BY idSanPhamChiTiet
+            ) n
+            FULL OUTER JOIN
+            (
+                SELECT idSanPhamChiTiet, SUM(soLuong) AS SoLuongCu
+                FROM deleted
+                GROUP BY idSanPhamChiTiet
+            ) o
+                ON n.idSanPhamChiTiet = o.idSanPhamChiTiet
+        ) b
+        JOIN dbo.SanPhamChiTiet s
+            ON s.Id = b.idSanPhamChiTiet
+        WHERE b.ChenhLech > 0
+          AND s.SoLuong < b.ChenhLech
+    )
+    BEGIN
+        RAISERROR (N'Khong du so luong ton.', 16, 1);
+        ROLLBACK TRANSACTION;
+        RETURN;
+    END
+
+    UPDATE s
+    SET s.SoLuong = s.SoLuong - b.ChenhLech
+    FROM dbo.SanPhamChiTiet s
+    JOIN
+    (
+        SELECT
+            COALESCE(n.idSanPhamChiTiet, o.idSanPhamChiTiet) AS idSanPhamChiTiet,
+            ISNULL(n.SoLuongMoi, 0) - ISNULL(o.SoLuongCu, 0) AS ChenhLech
+        FROM
+        (
+            SELECT idSanPhamChiTiet, SUM(soLuong) AS SoLuongMoi
+            FROM inserted
+            GROUP BY idSanPhamChiTiet
+        ) n
+        FULL OUTER JOIN
+        (
+            SELECT idSanPhamChiTiet, SUM(soLuong) AS SoLuongCu
+            FROM deleted
+            GROUP BY idSanPhamChiTiet
+        ) o
+            ON n.idSanPhamChiTiet = o.idSanPhamChiTiet
+    ) b
+        ON s.Id = b.idSanPhamChiTiet
+    WHERE b.ChenhLech <> 0;
+END;
+GO
+
+
+IF OBJECT_ID('dbo.TRG_DonHangChiTiet_Delete_HoanKho', 'TR') IS NOT NULL
+    DROP TRIGGER dbo.TRG_DonHangChiTiet_Delete_HoanKho;
+GO
+
+CREATE TRIGGER dbo.TRG_DonHangChiTiet_Delete_HoanKho
+ON dbo.donHangChiTiet
+AFTER DELETE
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    UPDATE s
+    SET s.SoLuong = s.SoLuong + x.TongSoLuongXoa
+    FROM dbo.SanPhamChiTiet s
+    JOIN
+    (
+        SELECT
+            idSanPhamChiTiet,
+            SUM(soLuong) AS TongSoLuongXoa
+        FROM deleted
+        GROUP BY idSanPhamChiTiet
+    ) x
+        ON s.Id = x.idSanPhamChiTiet;
+END;
+GO
+
+/* 7) XEM TỒN HIỆN TẠI */
+SELECT Id, SoLuong
+FROM dbo.SanPhamChiTiet
+ORDER BY Id;
+GO
