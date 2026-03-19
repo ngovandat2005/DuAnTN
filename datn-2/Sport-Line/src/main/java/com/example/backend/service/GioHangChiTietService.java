@@ -1,15 +1,15 @@
 package com.example.backend.service;
 
-
 import com.example.backend.dto.ThemGioHangDTO;
 import com.example.backend.entity.GioHangChiTiet;
 import com.example.backend.entity.KhachHang;
 import com.example.backend.entity.SanPhamChiTiet;
-import com.example.backend.repository.GioHangChiTietRepository;
+import com.example.backend.repository.GioHangChiTietRepo;
 import com.example.backend.repository.KhachHangRepository;
 import com.example.backend.repository.SanPhamChiTietRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -17,70 +17,137 @@ import java.util.List;
 public class GioHangChiTietService {
 
     @Autowired
-    private GioHangChiTietRepository repo;
+    private GioHangChiTietRepo gioHangChiTietRepo;
 
     @Autowired
-    private SanPhamChiTietRepository spctRepo;
+    private KhachHangRepository khachHangRepository;
 
     @Autowired
-    private KhachHangRepository khachRepo;
+    private SanPhamChiTietRepository sanPhamChiTietRepository;
 
-
+    @Transactional
     public GioHangChiTiet themVaoGio(ThemGioHangDTO req) {
-        SanPhamChiTiet spct = spctRepo.findById(req.getIdSanPhamChiTiet())
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy sản phẩm"));
-
-        KhachHang kh = khachRepo.findById(req.getIdKhachHang())
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy khách hàng"));
-
-        GioHangChiTiet tonTai = repo.findBySanPhamChiTietIdAndKhachHangId(
-                spct.getId(), kh.getId());
-
-        if (tonTai != null) {
-            tonTai.setSoLuong(tonTai.getSoLuong() + req.getSoLuong());
-            tonTai.setGia(spct.getGiaBan());
-            return repo.save(tonTai);
+        if (req == null) {
+            throw new RuntimeException("Dữ liệu thêm giỏ hàng không hợp lệ!");
         }
 
-        GioHangChiTiet moi = new GioHangChiTiet();
-        moi.setSanPhamChiTiet(spct);
-        moi.setKhachHang(kh);
-        moi.setSoLuong(req.getSoLuong());
-        moi.setGia(spct.getGiaBan());
-        return repo.save(moi);
+        return themVaoGio(req.getIdKhachHang(), req.getIdSanPhamChiTiet(), req.getSoLuong());
     }
 
-    // 2. Lấy danh sách giỏ hàng theo khách
+    @Transactional
+    public GioHangChiTiet themVaoGio(Integer idKhachHang, Integer idSanPhamChiTiet, Integer soLuongThem) {
+        if (idKhachHang == null) {
+            throw new RuntimeException("Khách hàng không hợp lệ!");
+        }
+
+        if (idSanPhamChiTiet == null) {
+            throw new RuntimeException("Sản phẩm không hợp lệ!");
+        }
+
+        if (soLuongThem == null || soLuongThem <= 0) {
+            throw new RuntimeException("Số lượng mua phải lớn hơn 0!");
+        }
+
+        KhachHang khachHang = khachHangRepository.findById(idKhachHang)
+                .orElseThrow(() -> new RuntimeException("Khách hàng không tồn tại!"));
+
+        SanPhamChiTiet spct = sanPhamChiTietRepository.findById(idSanPhamChiTiet)
+                .orElseThrow(() -> new RuntimeException("Sản phẩm chi tiết không tồn tại!"));
+
+        if (spct.getSoLuong() == null || spct.getSoLuong() == 0) {
+            throw new RuntimeException("Hàng đã hết!");
+        }
+
+        GioHangChiTiet gioHangDaCo = gioHangChiTietRepo
+                .findBySanPhamChiTietIdAndKhachHangId(idSanPhamChiTiet, idKhachHang);
+
+        int soLuongDangCoTrongGio = gioHangDaCo != null ? gioHangDaCo.getSoLuong() : 0;
+        int tongSauKhiThem = soLuongDangCoTrongGio + soLuongThem;
+
+        if (tongSauKhiThem > spct.getSoLuong()) {
+            throw new RuntimeException("Không đủ số lượng tồn!");
+        }
+
+        GioHangChiTiet gioHangChiTiet;
+        if (gioHangDaCo != null) {
+            gioHangChiTiet = gioHangDaCo;
+            gioHangChiTiet.setSoLuong(tongSauKhiThem);
+        } else {
+            gioHangChiTiet = new GioHangChiTiet();
+            gioHangChiTiet.setKhachHang(khachHang);
+            gioHangChiTiet.setSanPhamChiTiet(spct);
+            gioHangChiTiet.setSoLuong(soLuongThem);
+        }
+
+        gioHangChiTiet.setGia(
+                spct.getGiaBanGiamGia() != null && spct.getGiaBanGiamGia() > 0
+                        ? spct.getGiaBanGiamGia()
+                        : spct.getGiaBan()
+        );
+
+        return gioHangChiTietRepo.save(gioHangChiTiet);
+    }
+
+    @Transactional
+    public GioHangChiTiet capNhatSoLuong(Integer idGioHangChiTiet, Integer soLuongMoi) {
+        if (soLuongMoi == null || soLuongMoi <= 0) {
+            throw new RuntimeException("Số lượng mua phải lớn hơn 0!");
+        }
+
+        GioHangChiTiet gioHangChiTiet = gioHangChiTietRepo.findById(idGioHangChiTiet)
+                .orElseThrow(() -> new RuntimeException("Sản phẩm trong giỏ không tồn tại!"));
+
+        SanPhamChiTiet spct = gioHangChiTiet.getSanPhamChiTiet();
+
+        if (spct == null) {
+            throw new RuntimeException("Sản phẩm chi tiết không tồn tại!");
+        }
+
+        if (spct.getSoLuong() == null || spct.getSoLuong() == 0) {
+            throw new RuntimeException("Hàng đã hết!");
+        }
+
+        if (soLuongMoi > spct.getSoLuong()) {
+            throw new RuntimeException("Không đủ số lượng tồn!");
+        }
+
+        gioHangChiTiet.setSoLuong(soLuongMoi);
+        gioHangChiTiet.setGia(
+                spct.getGiaBanGiamGia() != null && spct.getGiaBanGiamGia() > 0
+                        ? spct.getGiaBanGiamGia()
+                        : spct.getGiaBan()
+        );
+
+        return gioHangChiTietRepo.save(gioHangChiTiet);
+    }
+
     public List<GioHangChiTiet> getDanhSachTheoKhach(Integer idKhachHang) {
-        return repo.findByKhachHangId(idKhachHang);
+        return gioHangChiTietRepo.findByKhachHangId(idKhachHang);
     }
-    // 3. Cập nhật số lượng
-    public GioHangChiTiet capNhatSoLuong(Integer id, int soLuongMoi) {
-        GioHangChiTiet chiTiet = repo.findById(id)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy chi tiết giỏ hàng"));
-        chiTiet.setSoLuong(soLuongMoi);
-        return repo.save(chiTiet);
-    }
-    // 4. Xóa toàn bộ sản phẩm trong giỏ của 1 khách
+
+    @Transactional
     public void xoaTatCaTheoKhach(Integer idKhach) {
-        List<GioHangChiTiet> danhSach = repo.findByKhachHangId(idKhach);
-        repo.deleteAll(danhSach);
+        List<GioHangChiTiet> ds = gioHangChiTietRepo.findByKhachHangId(idKhach);
+        gioHangChiTietRepo.deleteAll(ds);
     }
-    // 5. Đếm số loại sản phẩm
+
+    @Transactional
+    public void xoaTheoId(Integer id) {
+        GioHangChiTiet gioHangChiTiet = gioHangChiTietRepo.findById(id)
+                .orElseThrow(() -> new RuntimeException("Sản phẩm trong giỏ không tồn tại!"));
+
+        gioHangChiTietRepo.delete(gioHangChiTiet);
+    }
+
     public int soLoaiSanPham(Integer idKhach) {
-        return repo.findByKhachHangId(idKhach).size();
+        return gioHangChiTietRepo.findByKhachHangId(idKhach).size();
     }
 
-    // 6. Tổng số lượng
     public int tongSoLuong(Integer idKhachHang) {
-        return repo.demTongSoLuongTrongGioKhach(idKhachHang);
+        return gioHangChiTietRepo.demTongSoLuongTrongGioKhach(idKhachHang);
     }
 
-    // 7. Tổng tiền
     public double tongTien(Integer idKhachHang) {
-        return repo.tinhTongTienGioHang(idKhachHang);
-    }
-     public void xoaTheoId(Integer id) {
-        repo.deleteById(id);
+        return gioHangChiTietRepo.tinhTongTienGioHang(idKhachHang);
     }
 }
